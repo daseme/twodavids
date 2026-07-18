@@ -137,6 +137,46 @@ def test_viz_report_builds_from_run_dir(tmp_path):
     assert "unfolding" in watch
 
 
+def test_resume_continues_an_interrupted_run(tmp_path):
+    """Interruption insurance: seed + journal prefix + live oracle = a valid
+    continued world. The prefix must survive byte-identical, and the resumed
+    journal must itself replay-verify."""
+    import json
+    from dawn.journal import read_journal
+    from dawn.oracle import ResumeOracle, StubOracle
+    from dawn.oracle import ReplayOracle as RO
+    from dawn.rng import Streams
+
+    full = tmp_path / "full"
+    e = Engine(11, Params(), out_dir=full)
+    e.run(80)
+    e.journal.close()
+    lines = (full / "journal.jsonl").read_text().splitlines(keepends=True)
+    cut = int(len(lines) * 0.4)   # an abrupt kill, possibly mid-tick
+    resumed = tmp_path / "resumed"
+    resumed.mkdir()
+    (resumed / "journal.jsonl").write_text("".join(lines[:cut]))
+
+    records = read_journal(resumed / "journal.jsonl")
+    prefix_delibs = [r for r in records if r["type"] == "deliberation"]
+    oracle = ResumeOracle(records, StubOracle(Streams.from_seed(11).oracle))
+    e2 = Engine(11, Params(), out_dir=resumed, oracle=oracle)
+    e2.run(80)
+    e2.journal.close()
+
+    new = read_journal(resumed / "journal.jsonl")
+    new_delibs = [r for r in new if r["type"] == "deliberation"]
+    assert not oracle.replaying, "the whole prefix must be consumed"
+    assert len(new_delibs) > len(prefix_delibs), "the run must continue past the cut"
+    for a, b in zip(prefix_delibs, new_delibs):
+        assert a == b, "the recorded prefix must survive byte-identical"
+    # And the continued world is itself a valid journal: replay-verify it.
+    replay = Engine(11, Params(), oracle=RO(new))
+    replay.run(80)
+    assert [r for r in replay.journal.records if r["type"] == "deliberation"] \
+           == new_delibs
+
+
 def test_viewer_builds_from_run_dir(tmp_path):
     from dawn.viewer import write_viewer
     e = Engine(3, Params(), out_dir=tmp_path)

@@ -25,6 +25,24 @@ def cmd_run(args: argparse.Namespace) -> None:
                               **({"promoted": promoted} if promoted else {}))
         print(f"promotion live: {oracle.model} decides "
               f"{', '.join(sorted(oracle.promoted))}; stub keeps the rest")
+    if args.resume:
+        # Read and back up the prefix BEFORE Engine truncates the journal.
+        jp = out / "journal.jsonl"
+        if jp.exists():
+            import shutil
+            from .journal import read_journal
+            from .oracle import ResumeOracle, StubOracle
+            from .rng import Streams
+            records = read_journal(jp)
+            shutil.copy2(jp, out / "journal.pre-resume.jsonl")
+            live = oracle or StubOracle(Streams.from_seed(args.seed).oracle)
+            n = sum(1 for r in records if r.get("type") == "deliberation")
+            oracle = ResumeOracle(records, live)
+            print(f"resuming: replaying {n} recorded deliberations "
+                  f"(no API cost), then going live "
+                  f"(prefix backed up to journal.pre-resume.jsonl)")
+        else:
+            print("nothing to resume (no journal.jsonl); running fresh")
     eng = Engine(args.seed, Params(), out_dir=out, oracle=oracle)
     print(f"world of seed {args.seed}: "
           + ", ".join(c.name for c in eng.world.living()))
@@ -222,6 +240,9 @@ def main() -> None:
     r.add_argument("--promote", type=str, default=None,
                    help="comma-separated deliberation kinds the model decides "
                         "(default: contradiction,encounter,ratchet_crisis,recovery)")
+    r.add_argument("--resume", action="store_true",
+                   help="continue an interrupted run in --out: replay the "
+                        "recorded journal prefix (no API cost), then go live")
     r.set_defaults(fn=cmd_run)
 
     v = sub.add_parser("viz", help="build a self-contained HTML report from a run directory")

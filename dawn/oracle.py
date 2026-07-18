@@ -130,6 +130,63 @@ class ReplayOracle:
                          speaker=rec["speaker"], model=rec.get("model"))
 
 
+class ResumeOracle:
+    """Serve a recorded deliberation prefix in order, then hand off live.
+
+    Interruption insurance for promoted runs: the engine re-derives the
+    world from seed + the recorded prefix (pure compute, no API cost) and
+    the live oracle carries history forward from the cut. Identity of every
+    prefix record is checked against the situation the engine actually
+    raises — a mismatch means the journal belongs to a different
+    seed/params/code and aborts before the live oracle is asked anything.
+    """
+
+    def __init__(self, records: list[dict], live) -> None:
+        self._prefix = [r for r in records if r.get("type") == "deliberation"]
+        self._i = 0
+        self.live = live
+        self.model_id = live.model_id
+
+    @property
+    def replaying(self) -> bool:
+        return self._i < len(self._prefix)
+
+    def _serve(self, situation: Situation) -> Utterance:
+        rec = self._prefix[self._i]
+        got = (rec["tick"], rec["culture"], rec["faction"], rec["kind"])
+        want = (situation.tick, situation.culture, situation.faction, situation.kind)
+        if got != want:
+            raise RuntimeError(
+                f"resume mismatch at deliberation {self._i}: journal has "
+                f"{got}, engine raised {want} — the prefix does not belong "
+                f"to this seed/params")
+        self._i += 1
+        return Utterance(stance_id=rec["stance"], text=rec["text"],
+                         speaker=rec["speaker"], model=rec.get("model"))
+
+    def deliberate(self, sketch: str, situation: Situation) -> Utterance:
+        if self.replaying:
+            return self._serve(situation)
+        return self.live.deliberate(sketch, situation)
+
+    def deliberate_many(self, pairs: list[tuple[Situation, str]]) -> list[Utterance]:
+        out: list[Utterance | None] = [None] * len(pairs)
+        live_pairs, live_pos = [], []
+        for i, (s, sk) in enumerate(pairs):
+            if self.replaying:
+                out[i] = self._serve(s)
+            else:
+                live_pairs.append((s, sk))
+                live_pos.append(i)
+        if live_pairs:
+            lives = (self.live.deliberate_many(live_pairs)
+                     if hasattr(self.live, "deliberate_many")
+                     else [self.live.deliberate(sk, s) for s, sk in live_pairs])
+            for i, u in zip(live_pos, lives):
+                out[i] = u
+        return out
+
+
 def prompt_hash(sketch: str, situation: Situation) -> str:
     return hashlib.sha256(
         (sketch + "\n" + situation.prompt_summary()).encode()).hexdigest()[:16]
