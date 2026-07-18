@@ -51,8 +51,30 @@ as constant-size map labels (the Sholausreach, the Roraismere), water is
 flood-filled into bodies so the viewer knows who shares a shore, crossings
 between peoples on the same water go by boat rather than on foot — every boat
 is somebody's boat — and a jetty marks each waterside people's landing.
-Still to come: interpolated camera paths between beats, sound, rivers with
-more presence than a line.*
+**The visual pass (2026-07-18)** took the §2 craft seriously for the first
+time. The terrain render mesh is subdivided six ways per cell (283×283,
+159k triangles, against 4.4k before) and samples a continuous height field —
+bilinear over cell heights plus two noise octaves, admitted only where a
+`detailAmp` field allows, which is nowhere in water and nowhere on the bank.
+The data grid is untouched; only the sampling of it is finer, because detail
+has to live *between* cells to exist at all. Shadows exist at all now (2048
+PCFSoft, one ortho box over a fixed world). The ground is painted in two
+passes — tint per cell, where the record's resolution and the neighbourhood
+vote are, then sampled onto the fine mesh along noise-jittered coordinates
+so biome and frontier edges stop following cell boundaries — carrying rock
+on slope measured from the coarse surface, a wood's floor under clumped lit
+crowns, worn earth normalised against the most-trodden cell, per-vertex
+mottle and grain, and a fixed-angle hillshade that does not move with the
+sun. 1400 instanced trees in two species with a four-buffer seasonal ramp
+that bares the broadleaves in winter. A painted sky dome with sun, moon and
+seeded stars, its horizon colour also the fog's, so the land has no seam.
+Shores are softened: the last cells of land ramp into the water with a noisy
+lip, so the waterline wanders inside the shore cell while *which* cells are
+water stays exactly what the record says. A skirt and floor under the world.
+Compound built forms from a small geometry forge, with per-face shading
+baked at authoring time. Colours are authored in sRGB and converted —
+see §7. Still to come: interpolated camera paths between beats, sound,
+rivers with more presence than a line.*
 
 ## 0. The architecture in one sentence
 
@@ -220,3 +242,44 @@ only causal verb remains *argue*, and it lives in the CLI with the oracle
    the viewer against the bundle, as a side-track that cannot distort the core.
 3. `dawn bundle <run-dir>` CLI: zip the six files with a version stamp; the
    viewer accepts a bundle by drag-and-drop or URL fragment.
+
+## 7. Relation to the ANNALS visual brief
+
+The ANNALS craft reference has a companion *visual* brief, and a working
+implementation at `github.com/emollick/annals-kingdom`. This section records
+what we take from it and what we refuse, so the question does not have to be
+re-litigated every time the viewer looks worse than the reference.
+
+**Refused, and refusing is the argument.** Its world is a kingdom: monarch,
+treasury, great houses, capital, keeps, armies, caravans, plague, a dragon.
+Our record asserts none of those. Rendering them would violate §0 — invention
+may decorate what the record is silent about, never add to it. A capital with
+a keep, in a run where no lineage ever fused, is a lie about the history.
+This also rules out its farmland (rotated fields, hashed crop strips), which
+is a large part of why its map reads as inhabited: our record asserts no
+agriculture. Likewise its comets, eclipses and red moons — those are omens,
+portents that something happened, and nothing did. §5 already refuses
+pre-installed statal architecture and battles-as-spectacle; this is the same
+refusal continued into the visual layer.
+
+**Adopted wholesale**, being severable craft (§2): baked fixed-angle
+hillshade; per-face shading baked at geometry-authoring time; a CSS vignette
+over the canvas; a warm-key/cool-fill light pair; fog whose colour is always
+the sky's horizon; instanced vegetation with per-instance colour jitter;
+depth-tinted water with an analytic swell; a time-of-day gradient dome.
+
+**What the gap actually was.** Not tone mapping, not post-processing, not
+PBR — the reference has none of those (r128, Lambert, one render call, no
+colour management). It was geometry and shadows: our terrain was 4,418
+triangles against its 293,000, and we had no shadows at all. Everything else
+was surface treatment applied to a surface that was not there. Two
+consequences worth keeping in mind: detail noise evaluated at the data grid's
+own frequency is worthless, and any painted feature must be measured for
+coverage, since a feature at 90% coverage is a wash and looks identical to a
+bug.
+
+**One inherited hazard, not yet hit.** The reference documents that every
+`InstancedMesh` sharing a patched material must set `instanceColor`, or the
+renderer crashes seed-dependently by draw order. That applies if we ever
+adopt its `onBeforeCompile` world-space albedo noise — the fifth technique,
+still unadopted.
