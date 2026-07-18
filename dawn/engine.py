@@ -115,16 +115,25 @@ class Engine:
             for c in sorted(w.living(), key=lambda c: c.cid):
                 events += self._reevaluate_dominant(c)
 
-        # 6. deliberation triggers -> oracle (simultaneous, from snapshot)
+        # 6. deliberation triggers -> oracle. Deliberations within a tick
+        # resolve SIMULTANEOUSLY from pre-tick state: sketches are rendered
+        # from the snapshot, all calls dispatched together (the oracle may run
+        # them concurrently), and consequences applied in deterministic order.
         situations = self._collect_triggers(material, ratcheted_now, rng)
-        utterances: list[tuple[Situation, Utterance]] = []
+        prepared: list[tuple[Situation, str]] = []
         for sit in situations:
             mean, fvals, sal, gloss = snapshot.get(sit.culture, (None,) * 4)
             if mean is None:
                 continue
             sketch = (V.sketch(fvals.get(sit.faction, mean), sal)
                       + f" Their year is shaped so: {gloss}.")
-            utt = self.oracle.deliberate(sketch, sit)
+            prepared.append((sit, sketch))
+        results = self.oracle.deliberate_many([(s, sk) for s, sk in prepared]) \
+            if hasattr(self.oracle, "deliberate_many") \
+            else [self.oracle.deliberate(sk, s) for s, sk in prepared]
+
+        utterances: list[tuple[Situation, Utterance]] = []
+        for (sit, sketch), utt in zip(prepared, results):
             self.journal.write({
                 "type": "deliberation", "tick": w.tick, "culture": sit.culture,
                 "faction": sit.faction, "kind": sit.kind,

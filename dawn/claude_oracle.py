@@ -20,6 +20,7 @@ Discipline, enforced at the API layer, not by parsing hope:
 
 from __future__ import annotations
 
+import hashlib
 import json
 
 import numpy as np
@@ -83,19 +84,44 @@ class ClaudeOracle:
             self._client = anthropic.Anthropic()
         return self._client
 
+    def deliberate_many(self, pairs: list[tuple[Situation, str]]) -> list[Utterance]:
+        """Resolve a tick's deliberations simultaneously (design §3): promoted
+        calls run concurrently, order preserved so the journal is deterministic."""
+        from concurrent.futures import ThreadPoolExecutor
+        promoted_idx = [i for i, (s, _) in enumerate(pairs)
+                        if s.kind in self.promoted]
+        out: list[Utterance | None] = [None] * len(pairs)
+        for i, (s, sk) in enumerate(pairs):
+            if s.kind not in self.promoted:
+                out[i] = self.stub.deliberate(sk, s)
+        if promoted_idx:
+            with ThreadPoolExecutor(max_workers=min(6, len(promoted_idx))) as ex:
+                futs = {ex.submit(self.deliberate, pairs[i][1], pairs[i][0]): i
+                        for i in promoted_idx}
+                for fut in futs:
+                    out[futs[fut]] = fut.result()
+        return [u for u in out]
+
     def deliberate(self, sketch: str, situation: Situation) -> Utterance:
         if situation.kind not in self.promoted:
             return self.stub.deliberate(sketch, situation)
-        speaker = names.person(self.rng, situation.culture_name)
+        # Per-situation RNG so concurrent promoted calls never race on a shared
+        # stream — speaker naming and any fallback stay deterministic under
+        # thread order, keeping the journal exactly replayable.
+        key = f"{self.model}|{situation.tick}|{situation.culture}|{situation.faction}"
+        r = np.random.default_rng(
+            int.from_bytes(hashlib.sha256(key.encode()).digest()[:8], "big"))
+        local_stub = StubOracle(r)
+        speaker = names.person(r, situation.culture_name)
         menu_ids = {s.eid for s in situation.menu}
         try:
             stance_id, argument = self._call(sketch, situation)
         except Exception:
             self.fallbacks += 1
-            return self.stub.deliberate(sketch, situation)
+            return local_stub.deliberate(sketch, situation)
         if stance_id not in menu_ids or not argument:
             self.fallbacks += 1
-            return self.stub.deliberate(sketch, situation)
+            return local_stub.deliberate(sketch, situation)
         self.calls += 1
         text = (f"{speaker['name']} of the {situation.faction_name}, "
                 f"{speaker['traits'][0]} and {speaker['traits'][1]}, stood and said: "

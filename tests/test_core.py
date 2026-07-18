@@ -172,12 +172,12 @@ def test_promoted_oracle_mixed_journal_replays():
 
     class FakeClaude(ClaudeOracle):
         def _call(self, sketch, situation):
-            # deterministic fake "model": refuse if possible, else first move;
-            # every third call returns garbage to exercise the fallback path
-            self._n = getattr(self, "_n", 0) + 1
-            if self._n % 3 == 0:
+            # deterministic fake "model" keyed to the situation (not call order,
+            # which is non-deterministic under the concurrent deliberate_many):
+            # some situations return garbage to exercise the fallback path
+            ids = sorted(s.eid for s in situation.menu)
+            if (situation.tick + situation.culture) % 3 == 0:
                 return "not_a_stance", "gibberish"
-            ids = [s.eid for s in situation.menu]
             return ("refuse" if "refuse" in ids else ids[0]), "We will not carry this."
 
     a = Engine(11, Params(), oracle=FakeClaude(11, model="fake-model"))
