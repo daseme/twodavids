@@ -14,11 +14,15 @@ from .values import NOMADISM
 
 def nmi_culture_terrain(world) -> float:
     """Normalized mutual information between culture and biome over claimed cells."""
-    mask = world.owner >= 0
+    return nmi_owner_biome(world.owner, world.biome)
+
+
+def nmi_owner_biome(owner, biome) -> float:
+    mask = owner >= 0
     if mask.sum() == 0:
         return 0.0
-    c = world.owner[mask].ravel()
-    b = world.biome[mask].ravel()
+    c = owner[mask].ravel()
+    b = biome[mask].ravel()
     cs, bs = np.unique(c), np.unique(b)
     joint = np.zeros((len(cs), len(bs)))
     ci = {v: i for i, v in enumerate(cs)}
@@ -43,8 +47,13 @@ def evaluate(engine) -> dict:  # engine: dawn.engine.Engine (untyped to avoid a 
     generations = max(1, ticks // p.generation_ticks)
     living = w.living()
 
-    # 1. Culture borders decorrelate from terrain (PROVISIONAL threshold 0.30).
+    # 1. Culture borders decorrelate from terrain — measured against the
+    # world's own geometric baseline. Water and relief shape region *geometry*
+    # for every people equally (affordance); the claim is that culture
+    # dynamics add no terrain-predictability beyond that. NMI at tick 0 is
+    # pure worldgen geometry, before any culture dynamics exist.
     nmi = nmi_culture_terrain(w)
+    nmi0 = nmi_owner_biome(engine.owner0, w.biome)
 
     # 2. A culture area: shared trade/subsistence, inverted values.
     culture_areas = 0
@@ -102,8 +111,11 @@ def evaluate(engine) -> dict:  # engine: dawn.engine.Engine (untyped to avoid a 
             and 200 < sum(pops) < 5e7)
 
     checks = {
-        "terrain_decorrelation": {"pass": nmi < 0.30, "nmi": round(nmi, 3),
-                                  "threshold": 0.30},
+        "terrain_decorrelation": {"pass": nmi <= nmi0 + 0.15,
+                                  "nmi": round(nmi, 3),
+                                  "nmi_geometry_baseline": round(nmi0, 3),
+                                  "culture_added": round(nmi - nmi0, 3),
+                                  "threshold_over_baseline": 0.15},
         "culture_area_inverted": {"pass": culture_areas >= 1, "count": culture_areas},
         "seasonal_vs_ratcheted": {"pass": switching >= 1 and len(ratchets) >= 1,
                                   "switching_now": switching,

@@ -32,7 +32,13 @@ def schismogenesis_tick(world: World, rng: np.random.Generator,
         A, B = cultures[e.a], cultures[e.b]
         if not (A.alive and B.alive):
             continue
-        w = e.openness(cultures) * min(1.0, e.border / (0.5 * total_border))
+        # Water concentrates contact: waterside borders carry more of it, and
+        # sea routes are contact without any land border at all.
+        if e.sea_route:
+            w = e.openness(cultures) * p.sea_route_weight
+        else:
+            w = (e.openness(cultures) * min(1.0, e.border / (0.5 * total_border))
+                 * (1.0 + p.water_contact_boost * e.water_frac))
         if w <= 0.01:
             continue
 

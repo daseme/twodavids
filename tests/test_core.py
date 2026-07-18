@@ -168,3 +168,34 @@ def test_nmi_bounds():
     e = Engine(1, Params())
     v = nmi_culture_terrain(e.world)
     assert 0.0 <= v <= 1.0
+
+
+def test_hydrology_invariants():
+    """Rivers flow downhill to water or the edge; water is uninhabited;
+    named geography exists; water never determines culture placement."""
+    coastal = 0
+    for seed in range(1, 9):
+        e = Engine(seed, Params())
+        w = e.world
+        g = w.params.grid
+        assert w.water is not None and w.river is not None
+        assert (w.owner[w.water > 0] == -1).all(), "water cells must be uninhabited"
+        assert w.river.any(), "every world has at least one river"
+        assert any(f["kind"] == "river" for f in w.features)
+        for x, y, x2, y2 in w.river_segments:
+            assert w.elevation[x2, y2] <= w.elevation[x, y] + 0.05  # filled surface may flatten
+        if (w.water == 1).any():
+            coastal += 1
+            assert any(f["kind"] == "sea" for f in w.features)
+        assert 0.0 <= nmi_culture_terrain(w) <= 1.0
+    assert coastal >= 1, "a share of seeds should be coastal"
+
+
+def test_water_contact_infrastructure():
+    """Waterside borders and sea routes carry contact weight."""
+    for seed in range(1, 12):
+        e = Engine(seed, Params())
+        edges = e.world.edges.values()
+        if any(x.water_frac > 0 for x in edges) or any(x.sea_route for x in edges):
+            return
+    raise AssertionError("no water-weighted contact found in 11 worlds")

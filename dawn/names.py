@@ -32,6 +32,20 @@ def culture_name(rng: np.random.Generator) -> str:
     return word(rng, int(rng.integers(2, 4)))
 
 
+_WATER_SUFFIX = {"lake": ["mere", "water", "tarn"],
+                 "river": ["run", "flood", "beck", "flow"],
+                 "sea": ["deep", "main", "reach"],
+                 "bay": ["bight", "haven", "mouth"],
+                 "range": ["fells", "horns", "tor", "spine"]}
+
+
+def water_name(rng: np.random.Generator, kind: str) -> str:
+    """Named geography: 'Vethmere', 'Kaisrun', 'the Tholdeep'."""
+    stem = word(rng, int(rng.integers(1, 3)))
+    suffix = _WATER_SUFFIX[kind][int(rng.integers(len(_WATER_SUFFIX[kind])))]
+    return stem + suffix
+
+
 def person(rng: np.random.Generator, culture: str) -> dict:
     """Lazily instantiated notable: a voice, two traits, a one-line agenda."""
     t = rng.choice(len(_TRAITS), size=2, replace=False)

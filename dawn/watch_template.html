@@ -65,6 +65,9 @@
   input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; }
   select { background: var(--panel); color: var(--ink); border: 1px solid var(--line);
            border-radius: 6px; padding: 6px 8px; font: inherit; }
+  button.toggle { background: var(--panel); color: var(--ink-2); border: 1px solid var(--line);
+                  border-radius: 99px; padding: 2px 10px; font-size: 11.5px; cursor: pointer; }
+  button.toggle.on { color: var(--accent); border-color: var(--accent); }
 
   .stage { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; margin-top: 18px; }
   @media (max-width: 940px) { .stage { grid-template-columns: 1fr; } }
@@ -73,7 +76,7 @@
                border-radius: 10px; padding: 12px; align-self: start; }
   .map-frame { border-radius: 6px; overflow: hidden; box-shadow: inset 0 0 34px rgba(20,26,20,0.18); }
   #map { width: 100%; height: auto; display: block; cursor: crosshair; }
-  .legend { display: flex; flex-wrap: wrap; gap: 10px 16px; padding: 12px 2px 0; font-size: 12px; color: var(--ink-2); }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 12px 2px 0; font-size: 12px; color: var(--ink-2); align-items: center; }
   .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
 
   aside { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
@@ -122,14 +125,14 @@
 
   #tip { position: fixed; pointer-events: none; background: var(--tip-bg); color: var(--tip-ink);
          font-size: 12.5px; padding: 6px 9px; border-radius: 5px; opacity: 0; z-index: 10;
-         font-variant-numeric: tabular-nums; }
+         font-variant-numeric: tabular-nums; max-width: 280px; line-height: 1.5; }
 </style>
 
 <div class="wrap">
   <header>
     <span class="eyebrow">dawn · watch mode</span>
     <h1 id="title"></h1>
-    <span class="hint">space plays · ← → step a year · click a people for their dossier · click a second to compare</span>
+    <span class="hint">space plays · ← → step a year · click a people for their dossier · click a boat for its errand</span>
   </header>
 
   <div class="controls">
@@ -154,13 +157,14 @@
         <canvas id="map" width="960" height="960" aria-label="The world map, animating through time"></canvas>
       </div>
       <div class="legend">
-        <span><i style="background:var(--ev-ratchet)"></i>ratchet / hardening</span>
+        <span><i style="background:var(--ev-ratchet)"></i>ratchet</span>
         <span><i style="background:var(--ev-fusion)"></i>fusion</span>
         <span><i style="background:var(--ev-unfusion)"></i>unfusion</span>
         <span><i style="background:var(--ev-liberation)"></i>liberation</span>
         <span><i style="background:var(--ev-schism)"></i>schism</span>
         <span><i style="background:var(--ev-extinction)"></i>abandonment</span>
-        <span>◌ fused polity · dots = defections · arcs = feasts</span>
+        <span>◌ fused · dotted lines = hospitality routes · soft edges = open boundaries</span>
+        <button class="toggle" id="hue-btn" title="Derive each people's hue from its value vector instead of a fixed identity color">identity colours</button>
       </div>
     </div>
     <aside>
@@ -189,8 +193,8 @@
           <select id="ax-y" aria-label="Vertical axis"></select>
         </div>
         <canvas id="space" width="340" height="300" aria-label="Cultures as points in value space"></canvas>
-        <div class="d-status">Every people is a point; trails are the last fifty years.
-          Schismogenesis is points repelling. Click a point to select.</div>
+        <div class="d-status">Every people is a point; trails are the last fifty years. A selected
+          people shows its factions as satellites — watch one detach when they walk out.</div>
       </div>
       <div class="ticker" id="ticker" aria-live="polite">
         <h2>The record, as it is made — click an entry to revisit it</h2>
@@ -205,28 +209,73 @@ const DATA = __DATA__;
 const G = DATA.grid, T_END = DATA.ticks, CELL = 960 / G;
 const SEASONS = ["spring", "summer", "autumn", "winter"];
 const BIOME_TINT = [[214,205,159],[157,185,138],[181,203,150],[169,196,206],[192,188,176],[228,215,174]];
+const SEA_RGB = "#87A9BD", LAKE_RGB = "#8FB6C2", RIVER_RGB = "#5E8FA8";
 const EV_COLOR = { ratchet: "--ev-ratchet", hardening: "--ev-ratchet", fusion: "--ev-fusion",
                    unfusion: "--ev-unfusion", liberation: "--ev-liberation",
                    schism: "--ev-schism", extinction: "--ev-extinction" };
 const EV_LABEL = { ratchet: "Ratchet", hardening: "Hardening", fusion: "Fusion",
                    unfusion: "Unfusion", liberation: "Liberation", schism: "Schism",
                    extinction: "Abandonment" };
-const hueOf = cid => (cid * 137.508) % 360;
-const cultureColor = (cid, a=1, l=50) => `hsla(${hueOf(cid)}, 50%, ${l}%, ${a})`;
 const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const fmt = n => n.toLocaleString("en-US");
 const nameOf = cid => DATA.cultures[cid] ? DATA.cultures[cid].name : `people ${cid}`;
+const WATER = DATA.water || Array.from({length: G}, () => new Array(G).fill(0));
+const RIVERS = DATA.rivers || [];
+const pkey = (a, b) => a < b ? `${a}|${b}` : `${b}|${a}`;
+const clamp1 = v => Math.max(-1, Math.min(1, v));
 
 document.getElementById("title").textContent = `The World of Seed ${DATA.seed}, unfolding`;
 document.title = `Watching Seed ${DATA.seed} — dawn`;
 
-// ---- time state ----------------------------------------------------------------
+// ---- time & selection state -------------------------------------------------------
 let t = 0, playing = false, speed = 25;
 let selA = null, selB = null;
+let colorMode = "id";
 const scrub = document.getElementById("scrub");
 scrub.max = T_END;
 
-// ---- territory reconstruction ----------------------------------------------------
+// ---- deterministic PRNG + names (the elaboration rule: invention is seeded, never fact)
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let x = Math.imul(a ^ a >>> 15, 1 | a);
+    x = x + Math.imul(x ^ x >>> 7, 61 | x) ^ x;
+    return ((x ^ x >>> 14) >>> 0) / 4294967296;
+  };
+}
+const ONS = ["k","t","s","m","n","w","y","h","sh","ts","l","r","kw","th",""];
+const VOW = ["a","e","i","o","u","ai","au","ei"];
+const COD = ["","","n","l","r","s","k","m"];
+function jsName(seed) {
+  const r = mulberry32(seed);
+  let w = "";
+  const n = 2 + Math.floor(r() * 2);
+  for (let i = 0; i < n; i++)
+    w += ONS[Math.floor(r() * ONS.length)] + VOW[Math.floor(r() * VOW.length)]
+       + COD[Math.floor(r() * COD.length)];
+  return w.charAt(0).toUpperCase() + w.slice(1);
+}
+
+// ---- colour: identity, or value-derived (toggle) ----------------------------------
+function colorOf(cid, sum, a = 1, l = 50) {
+  if (colorMode === "value" && sum) {
+    const m = (sum.c[cid] || {}).mean;
+    if (m) {
+      const hue = ((Math.atan2(m[4] + 0.6 * m[2], m[0] + 0.6 * m[5]) * 180 / Math.PI) + 360) % 360;
+      return `hsla(${hue}, 55%, ${l}%, ${a})`;
+    }
+  }
+  return `hsla(${(cid * 137.508) % 360}, 50%, ${l}%, ${a})`;
+}
+const hueBtn = document.getElementById("hue-btn");
+hueBtn.addEventListener("click", () => {
+  colorMode = colorMode === "id" ? "value" : "id";
+  hueBtn.textContent = colorMode === "id" ? "identity colours" : "value colours";
+  hueBtn.classList.toggle("on", colorMode === "value");
+  ownVersion = ""; dossierKey = "";
+});
+
+// ---- territory reconstruction -------------------------------------------------------
 const deltas = DATA.deltas.slice().sort((a, b) => a.tick - b.tick);
 let owner = null, appliedTo = -1, appliedCount = 0;
 function ownerAt(tick) {
@@ -244,7 +293,7 @@ function ownerAt(tick) {
   return owner;
 }
 
-// ---- summaries -------------------------------------------------------------------
+// ---- summaries ------------------------------------------------------------------------
 const sums = DATA.summaries;
 function summaryIdx(tick) {
   let lo = 0, hi = sums.length - 1;
@@ -262,86 +311,135 @@ function centroids(ow) {
   for (const k in acc) out[k] = [acc[k][0] / acc[k][2], acc[k][1] / acc[k][2]];
   return out;
 }
-
-// ---- terrain layer (static): biome tint x hillshade -------------------------------
-const terrain = document.createElement("canvas");
-terrain.width = terrain.height = 960;
-(function drawTerrain() {
-  const g = terrain.getContext("2d");
-  const E = DATA.elevation;
-  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
-    let shade = 1;
-    if (E) {
-      const e = E[x][y] / 1000;
-      const nw = E[Math.max(0, x - 1)][Math.max(0, y - 1)] / 1000;
-      shade = 0.9 + (e - nw) * 2.2 + (e - 0.5) * 0.12; // light from the northwest
-      shade = Math.max(0.72, Math.min(1.22, shade));
-    }
-    const [r, gr, b] = BIOME_TINT[DATA.biome[x][y]];
-    g.fillStyle = `rgb(${Math.round(r * shade)},${Math.round(gr * shade)},${Math.round(b * shade)})`;
-    g.fillRect(y * CELL, x * CELL, CELL + 0.5, CELL + 0.5);
+function varianceOf(info) {
+  if (!info || !info.fx) return 0;
+  let v = 0;
+  for (const f of info.fx) {
+    let s = 0;
+    for (let k = 1; k < f.length; k++) s += f[k] * f[k];
+    v += f[0] * Math.sqrt(s);
   }
-})();
-
-// ---- ownership layer: redrawn only when territory or selection changes ------------
-const ownLayer = document.createElement("canvas");
-ownLayer.width = ownLayer.height = 960;
-let ownVersion = "";
-function drawOwnLayer(ow) {
-  const key = `${appliedCount}|${selA}|${selB}`;
-  if (key === ownVersion) return;
-  ownVersion = key;
-  const g = ownLayer.getContext("2d");
-  g.clearRect(0, 0, 960, 960);
-  const dimming = selA !== null;
-  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
-    const o = ow[x][y]; if (o < 0) continue;
-    const chosen = o === selA || o === selB;
-    g.fillStyle = cultureColor(o, dimming && !chosen ? 0.18 : 0.60);
-    g.fillRect(y * CELL, x * CELL, CELL + 0.5, CELL + 0.5);
-  }
-  g.strokeStyle = "rgba(28,34,28,0.5)"; g.lineWidth = 1.2;
-  g.beginPath();
-  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
-    const o = ow[x][y];
-    if (x + 1 < G && ow[x + 1][y] !== o) { g.moveTo(y * CELL, (x + 1) * CELL); g.lineTo((y + 1) * CELL, (x + 1) * CELL); }
-    if (y + 1 < G && ow[x][y + 1] !== o) { g.moveTo((y + 1) * CELL, x * CELL); g.lineTo((y + 1) * CELL, (x + 1) * CELL); }
-  }
-  g.stroke();
-  for (const sel of [selA, selB]) {
-    if (sel === null) continue;
-    g.strokeStyle = cultureColor(sel, 1, 32); g.lineWidth = 3;
-    g.beginPath();
-    for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
-      if (ow[x][y] !== sel) continue;
-      if (x === 0 || ow[x - 1][y] !== sel) { g.moveTo(y * CELL, x * CELL); g.lineTo((y + 1) * CELL, x * CELL); }
-      if (x === G - 1 || ow[x + 1][y] !== sel) { g.moveTo(y * CELL, (x + 1) * CELL); g.lineTo((y + 1) * CELL, (x + 1) * CELL); }
-      if (y === 0 || ow[x][y - 1] !== sel) { g.moveTo(y * CELL, x * CELL); g.lineTo(y * CELL, (x + 1) * CELL); }
-      if (y === G - 1 || ow[x][y + 1] !== sel) { g.moveTo((y + 1) * CELL, x * CELL); g.lineTo((y + 1) * CELL, (x + 1) * CELL); }
-    }
-    g.stroke();
-  }
+  return v / 2.83;
 }
 
-// ---- events, flows, ticker ---------------------------------------------------------
+// ---- water bodies (static) -----------------------------------------------------------
+const bodyId = (() => {
+  const b = Array.from({length: G}, () => new Array(G).fill(-1));
+  let nb = 0;
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
+    if (WATER[x][y] === 0 || b[x][y] >= 0) continue;
+    const q = [[x, y]]; b[x][y] = nb;
+    while (q.length) {
+      const [cx, cy] = q.pop();
+      for (const [nx, ny] of [[cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]])
+        if (nx>=0 && ny>=0 && nx<G && ny<G && WATER[nx][ny] > 0 && b[nx][ny] < 0) {
+          b[nx][ny] = nb; q.push([nx, ny]);
+        }
+    }
+    nb++;
+  }
+  return b;
+})();
+const wetAdj = (() => {
+  const wet = Array.from({length: G}, () => new Array(G).fill(false));
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) if (WATER[x][y] > 0) wet[x][y] = true;
+  for (const [x, y] of RIVERS.map(s => [s[0], s[1]])) wet[x][y] = true;
+  const adj = Array.from({length: G}, () => new Array(G).fill(false));
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
+    if (WATER[x][y] > 0) continue;
+    for (const [nx, ny] of [[x+1,y],[x-1,y],[x,y+1],[x,y-1]])
+      if (nx>=0 && ny>=0 && nx<G && ny<G && wet[nx][ny]) { adj[x][y] = true; break; }
+  }
+  return adj;
+})();
+
+// ---- per-territory caches: adjacency pairs, shores, sites -----------------------------
+let terrVer = -1, pairCache = [], shoreCache = {}, siteCache = {};
+function refreshTerritoryCaches(ow) {
+  if (terrVer === appliedCount) return;
+  terrVer = appliedCount;
+  const pairs = new Map();
+  shoreCache = {}; siteCache = {};
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
+    const o = ow[x][y];
+    if (o >= 0) {
+      for (const [nx, ny] of [[x+1,y],[x,y+1]]) {
+        if (nx >= G || ny >= G) continue;
+        const p = ow[nx][ny];
+        if (p >= 0 && p !== o) pairs.set(pkey(o, p), {a: Math.min(o,p), b: Math.max(o,p), water: false});
+      }
+    } else if (WATER[x][y] > 0) {
+      for (const [nx, ny] of [[x+1,y],[x-1,y],[x,y+1],[x,y-1]]) {
+        if (nx<0||ny<0||nx>=G||ny>=G) continue;
+        const p = ow[nx][ny];
+        if (p >= 0) (shoreCache[p] ||= new Set()).add(bodyId[x][y]);
+      }
+    }
+  }
+  // sea routes: peoples working the same water body are in contact across it
+  const cids = Object.keys(shoreCache);
+  for (let i = 0; i < cids.length; i++) for (let j = i + 1; j < cids.length; j++) {
+    const a = +cids[i], b = +cids[j];
+    if ([...shoreCache[a]].some(x => shoreCache[b].has(x)) && !pairs.has(pkey(a, b)))
+      pairs.set(pkey(a, b), {a: Math.min(a,b), b: Math.max(a,b), water: true});
+  }
+  pairCache = [...pairs.values()];
+}
+function waterLinked(a, b) {
+  const sa = shoreCache[a], sb = shoreCache[b];
+  return !!(sa && sb && [...sa].some(x => sb.has(x)));
+}
+function sitesFor(cid, ow) {
+  if (siteCache[cid]) return siteCache[cid];
+  const cells = [];
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) if (ow[x][y] === cid) cells.push([x, y]);
+  if (!cells.length) return (siteCache[cid] = null);
+  const cx = cells.reduce((s, c) => s + c[0], 0) / cells.length;
+  const cy = cells.reduce((s, c) => s + c[1], 0) / cells.length;
+  // Winter anchor prefers the waterside — the lakeshore camp exists because the lake does.
+  let anchor = cells[0], best = -1e9;
+  for (const [x, y] of cells) {
+    const s = (wetAdj[x][y] ? 2.2 : 0) - 0.06 * Math.hypot(x - cx, y - cy) - (x * G + y) * 1e-6;
+    if (s > best) { best = s; anchor = [x, y]; }
+  }
+  const r = mulberry32((DATA.seed * 2654435761 ^ cid * 97) | 0);
+  const camps = [];
+  const pool = cells.slice();
+  while (camps.length < 6 && pool.length) {
+    const i = Math.floor(r() * pool.length);
+    camps.push(pool.splice(i, 1)[0]);
+  }
+  return (siteCache[cid] = {anchor, camps});
+}
+
+// ---- traffic & feast recency (rebuilt on seek, advanced on play) ------------------------
 const events = DATA.events.slice().sort((a, b) => a.tick - b.tick);
 const flows = DATA.flows.slice().sort((a, b) => a.tick - b.tick);
 const feasts = DATA.feasts.slice().sort((a, b) => a.tick - b.tick);
+let evPtr = 0, flowPtr = 0, feastPtr = 0;
+let traffic = {}, lastFeast = {};
+function seekPtrs(tick) {
+  evPtr = events.findIndex(e => e.tick > tick); if (evPtr < 0) evPtr = events.length;
+  flowPtr = flows.findIndex(e => e.tick > tick); if (flowPtr < 0) flowPtr = flows.length;
+  feastPtr = feasts.findIndex(e => e.tick > tick); if (feastPtr < 0) feastPtr = feasts.length;
+  traffic = {}; lastFeast = {};
+  for (let i = 0; i < flowPtr; i++) {
+    const k = pkey(flows[i].from, flows[i].to);
+    traffic[k] = (traffic[k] || 0) + 1;
+  }
+  for (let i = 0; i < feastPtr; i++) lastFeast[pkey(feasts[i].a, feasts[i].b)] = feasts[i].tick;
+}
+
 const chronMap = new Map();
 for (const c of DATA.chronicle) {
   const k = `${c.tick}|${c.type}`;
   if (!chronMap.has(k)) chronMap.set(k, c);
 }
-let evPtr = 0, flowPtr = 0, feastPtr = 0;
-function seekPtrs(tick) {
-  evPtr = events.findIndex(e => e.tick > tick); if (evPtr < 0) evPtr = events.length;
-  flowPtr = flows.findIndex(e => e.tick > tick); if (flowPtr < 0) flowPtr = flows.length;
-  feastPtr = feasts.findIndex(e => e.tick > tick); if (feastPtr < 0) feastPtr = feasts.length;
-}
 
-let pulses = [], darts = [], arcs = [];
+let pulses = [], darts = [], arcs = [], boats = [];
 const now = () => performance.now();
 
+// ---- ticker --------------------------------------------------------------------------------
 const ticker = document.getElementById("ticker");
 function tickerAdd(ev) {
   const c = chronMap.get(`${ev.tick}|${ev.type}`);
@@ -369,6 +467,7 @@ ticker.addEventListener("click", e => {
   if (entry) seekTo(+entry.dataset.tick);
 });
 
+// ---- crossing the playhead: pulses, darts, arcs, boats -----------------------------------
 function fire(tick, cents) {
   while (evPtr < events.length && events[evPtr].tick <= tick) {
     const ev = events[evPtr++];
@@ -379,29 +478,250 @@ function fire(tick, cents) {
   }
   while (flowPtr < flows.length && flows[flowPtr].tick <= tick) {
     const f = flows[flowPtr++];
+    traffic[pkey(f.from, f.to)] = (traffic[pkey(f.from, f.to)] || 0) + 1;
     const a = cents[f.from], b = cents[f.to];
-    if (a && b) darts.push({ ax: a[1], ay: a[0], bx: b[1], by: b[0], born: now(),
-                             dur: 900, n: Math.min(f.n, 4) });
+    if (!a || !b) continue;
+    if (waterLinked(f.from, f.to)) {
+      // every boat is somebody's boat
+      boats.push({ax: a[1], ay: a[0], bx: b[1], by: b[0], born: now(), dur: 2600,
+                  from: f.from, to: f.to,
+                  owner: jsName((f.tick * 31 + f.from * 7 + f.to) | 0),
+                  errand: `leading families across the water to the ${nameOf(f.to)}, rather than live the gap`});
+    } else {
+      darts.push({ ax: a[1], ay: a[0], bx: b[1], by: b[0], born: now(), dur: 900,
+                   n: Math.min(f.n, 4) });
+    }
   }
   while (feastPtr < feasts.length && feasts[feastPtr].tick <= tick) {
     const f = feasts[feastPtr++];
+    lastFeast[pkey(f.a, f.b)] = f.tick;
     const a = cents[f.a], b = cents[f.b];
-    if (a && b) arcs.push({ ax: a[1], ay: a[0], bx: b[1], by: b[0], born: now() });
+    if (!a || !b) continue;
+    if (waterLinked(f.a, f.b)) {
+      boats.push({ax: a[1], ay: a[0], bx: b[1], by: b[0], born: now(), dur: 2600,
+                  from: f.a, to: f.b,
+                  owner: jsName((f.tick * 37 + f.a * 11 + f.b) | 0),
+                  errand: `bearing gifts to the ${nameOf(f.b)}, that the boundary soften`});
+    } else {
+      arcs.push({ ax: a[1], ay: a[0], bx: b[1], by: b[0], born: now() });
+    }
   }
 }
 
-// ---- main compositor ------------------------------------------------------------------
+// ---- terrain layer (static): sea, lakes, hillshaded land, rivers, named geography ----------
+const terrain = document.createElement("canvas");
+terrain.width = terrain.height = 960;
+(function drawTerrain() {
+  const g = terrain.getContext("2d");
+  const E = DATA.elevation;
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
+    if (WATER[x][y] === 1) { g.fillStyle = SEA_RGB; }
+    else if (WATER[x][y] === 2) { g.fillStyle = LAKE_RGB; }
+    else {
+      let shade = 1;
+      if (E) {
+        const e = E[x][y] / 1000;
+        const nw = E[Math.max(0, x - 1)][Math.max(0, y - 1)] / 1000;
+        shade = Math.max(0.72, Math.min(1.22, 0.9 + (e - nw) * 2.2 + (e - 0.5) * 0.12));
+      }
+      const [r, gr, b] = BIOME_TINT[DATA.biome[x][y]];
+      g.fillStyle = `rgb(${Math.round(r*shade)},${Math.round(gr*shade)},${Math.round(b*shade)})`;
+    }
+    g.fillRect(y * CELL, x * CELL, CELL + 0.5, CELL + 0.5);
+  }
+  g.strokeStyle = RIVER_RGB; g.lineWidth = 2.4; g.lineCap = "round"; g.globalAlpha = 0.9;
+  g.beginPath();
+  for (const [x, y, x2, y2] of RIVERS) {
+    g.moveTo((y + 0.5) * CELL, (x + 0.5) * CELL);
+    g.lineTo((y2 + 0.5) * CELL, (x2 + 0.5) * CELL);
+  }
+  g.stroke(); g.globalAlpha = 1;
+  g.font = "italic 15px Iowan Old Style, Palatino, Georgia, serif";
+  g.textAlign = "center";
+  for (const f of DATA.features || []) {
+    const [fx, fy] = f.at;
+    g.strokeStyle = "rgba(240,244,246,0.85)"; g.lineWidth = 3.5;
+    g.strokeText(`the ${f.name}`, (fy + 0.5) * CELL, (fx + 0.5) * CELL);
+    g.fillStyle = f.kind === "range" ? "#5C5648" : "#33566B";
+    g.fillText(`the ${f.name}`, (fy + 0.5) * CELL, (fx + 0.5) * CELL);
+  }
+})();
+
+// ---- ownership layer: membership as a gradient field ----------------------------------------
+// Border sharpness is a *simulated* variable: edges stay soft where the
+// closed/open axis is open and feasts are warm; they crisp only where
+// boundaries have genuinely hardened. Freedom to move, visible at a glance.
+const ownLayer = document.createElement("canvas");
+ownLayer.width = ownLayer.height = 960;
+let ownVersion = "";
+function pairSoftness(a, b, sum) {
+  const ma = (sum.c[a] || {}).mean, mb = (sum.c[b] || {}).mean;
+  if (!ma || !mb) return 0.3;
+  let o = Math.sqrt(Math.max(0, (1 - ma[3]) / 2) * Math.max(0, (1 - mb[3]) / 2));
+  const lf = lastFeast[pkey(a, b)];
+  if (lf !== undefined && t - lf < 24) o = Math.min(1, o + 0.3);
+  return o;
+}
+function cellHash(x, y, o) {
+  let h = (x * 73856093) ^ (y * 19349663) ^ (o * 83492791);
+  h = (h ^ (h >>> 13)) * 0x5bd1e995;
+  return (h ^ (h >>> 15)) >>> 0;
+}
+function drawOwnLayer(ow, sum) {
+  const key = `${appliedCount}|${selA}|${selB}|${summaryIdx(t)}|${colorMode}|${Math.floor(t/8)}`;
+  if (key === ownVersion) return;
+  ownVersion = key;
+  const g = ownLayer.getContext("2d");
+  g.clearRect(0, 0, 960, 960);
+  const dimming = selA !== null;
+  const varCache = {};
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
+    const o = ow[x][y]; if (o < 0) continue;
+    const chosen = o === selA || o === selB;
+    g.fillStyle = colorOf(o, sum, dimming && !chosen ? 0.18 : 0.58);
+    g.fillRect(y * CELL, x * CELL, CELL + 0.5, CELL + 0.5);
+    // internal variance as visible churn: a people near crisis mottles
+    const v = (varCache[o] ??= varianceOf(sum.c[o]));
+    if (v > 0.14) {
+      const h = cellHash(x, y, o);
+      if (h & 1) {
+        const amp = Math.min(0.20, (v - 0.14) * 0.9);
+        g.fillStyle = (h & 2) ? `rgba(250,252,248,${amp})` : `rgba(18,24,18,${amp})`;
+        g.fillRect(y * CELL, x * CELL, CELL + 0.5, CELL + 0.5);
+      }
+    }
+  }
+  // border physics, per pair
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
+    const o = ow[x][y]; if (o < 0) continue;
+    for (const [nx, ny, hor] of [[x + 1, y, true], [x, y + 1, false]]) {
+      if (nx >= G || ny >= G) continue;
+      const p = ow[nx][ny];
+      if (p === o || p < 0) continue;
+      const sig = pairSoftness(o, p, sum);
+      const X1 = hor ? y * CELL : (y + 1) * CELL, Y1 = hor ? (x + 1) * CELL : x * CELL;
+      const X2 = (y + 1) * CELL, Y2 = (x + 1) * CELL;
+      if (sig >= 0.45) {
+        // open boundary: colors bleed into one another; no wall is drawn
+        const bleed = Math.min(0.22, (sig - 0.3) * 0.35);
+        g.strokeStyle = colorOf(p, sum, bleed); g.lineWidth = 7;
+        g.beginPath(); g.moveTo(X1, Y1); g.lineTo(X2, Y2); g.stroke();
+        g.strokeStyle = colorOf(o, sum, bleed); g.lineWidth = 3;
+        g.beginPath(); g.moveTo(X1, Y1); g.lineTo(X2, Y2); g.stroke();
+      } else {
+        // hardened boundary: a wall with weight proportional to its closure
+        g.strokeStyle = `rgba(28,34,28,${0.35 + 0.5 * (1 - sig / 0.45)})`;
+        g.lineWidth = 1 + 2.4 * (1 - sig / 0.45);
+        g.beginPath(); g.moveTo(X1, Y1); g.lineTo(X2, Y2); g.stroke();
+      }
+    }
+  }
+  // outline for unclaimed land against water stays implicit; selection outline:
+  for (const sel of [selA, selB]) {
+    if (sel === null) continue;
+    g.strokeStyle = colorOf(sel, sum, 1, 32); g.lineWidth = 3;
+    g.beginPath();
+    for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
+      if (ow[x][y] !== sel) continue;
+      if (x === 0 || ow[x - 1][y] !== sel) { g.moveTo(y * CELL, x * CELL); g.lineTo((y + 1) * CELL, x * CELL); }
+      if (x === G - 1 || ow[x + 1][y] !== sel) { g.moveTo(y * CELL, (x + 1) * CELL); g.lineTo((y + 1) * CELL, (x + 1) * CELL); }
+      if (y === 0 || ow[x][y - 1] !== sel) { g.moveTo(y * CELL, x * CELL); g.lineTo(y * CELL, (x + 1) * CELL); }
+      if (y === G - 1 || ow[x][y + 1] !== sel) { g.moveTo((y + 1) * CELL, x * CELL); g.lineTo((y + 1) * CELL, (x + 1) * CELL); }
+    }
+    g.stroke();
+  }
+}
+
+// ---- routes: in this world, routes are more real than edges --------------------------------
+function drawRoutes(g, sum, cents) {
+  for (const pr of pairCache) {
+    const a = cents[pr.a], b = cents[pr.b];
+    if (!a || !b) continue;
+    const sig = pairSoftness(pr.a, pr.b, sum);
+    const tr = traffic[pkey(pr.a, pr.b)] || 0;
+    if (sig < 0.25 && tr === 0) continue;  // a dead route is an absence (and a scar)
+    const alpha = Math.min(0.55, 0.08 + sig * 0.18 + tr * 0.035);
+    g.strokeStyle = pr.water ? `rgba(52,101,130,${alpha})` : `rgba(90,100,90,${alpha})`;
+    g.lineWidth = 1.5 + Math.min(2.5, tr * 0.12);
+    g.setLineDash([2, 6]);
+    const mx = (a[1] + b[1]) / 2 + (pr.water ? 0 : 0), my = (a[0] + b[0]) / 2 - (pr.water ? 5 : 2);
+    g.beginPath();
+    g.moveTo(a[1] * CELL, a[0] * CELL);
+    g.quadraticCurveTo(mx * CELL, my * CELL, b[1] * CELL, b[0] * CELL);
+    g.stroke();
+    g.setLineDash([]);
+  }
+}
+
+// ---- sites: inhabitation that turns with the seasons ---------------------------------------
+// Deterministic elaboration (VIEWER.md): sites are invented from bundle+seed
+// and assert nothing the record contradicts. The configuration-in-effect for
+// the current season decides whether a people is gathered or dispersed.
+function drawSites(g, sum, ow) {
+  const season = Math.floor(t) % 4;
+  for (const cid in sum.c) {
+    const info = sum.c[cid];
+    const cfg = DATA.configs[info.cfg];
+    if (!cfg) continue;
+    const st = DATA.structures[cfg.seasons[season]];
+    if (!st) continue;
+    const site = sitesFor(+cid, ow);
+    if (!site) continue;
+    const ink = "rgba(28,34,28,0.85)";
+    const fill = colorOf(+cid, sum, 0.9, 34);
+    if (st.settlement === "aggregated") {
+      const [x, y] = site.anchor;
+      const cxp = (y + 0.5) * CELL, cyp = (x + 0.5) * CELL;
+      const s = Math.max(6, Math.min(15, 4 + Math.sqrt(info.pop) / 14));
+      g.fillStyle = fill; g.strokeStyle = ink; g.lineWidth = 1.6;
+      if (st.authority === "chief") {
+        g.fillRect(cxp - s / 2, cyp - s / 2, s, s); g.strokeRect(cxp - s / 2, cyp - s / 2, s, s);
+        g.beginPath(); g.moveTo(cxp, cyp - s / 2); g.lineTo(cxp, cyp - s / 2 - 6); g.stroke();
+        if (cfg.seasons[season] === "hoard_fort") {
+          // walls are earned iconography: hoard_fort exists only after a hardening
+          g.beginPath(); g.arc(cxp, cyp, s * 0.95, 0, 7); g.stroke();
+        }
+      } else if (st.authority === "council") {
+        g.beginPath();
+        g.moveTo(cxp, cyp - s * 0.7); g.lineTo(cxp + s * 0.7, cyp);
+        g.lineTo(cxp, cyp + s * 0.7); g.lineTo(cxp - s * 0.7, cyp);
+        g.closePath(); g.fill(); g.stroke();
+      } else {
+        for (let i = 0; i < 3; i++) {
+          const a = i * 2.1 + 0.5, tx = cxp + Math.cos(a) * s * 0.5, ty = cyp + Math.sin(a) * s * 0.5;
+          tent(g, tx, ty, 4.5, fill, ink);
+        }
+      }
+    } else {
+      const k = Math.max(2, Math.min(6, Math.round(info.pop / 500) + 1));
+      for (let i = 0; i < k && i < site.camps.length; i++) {
+        const [x, y] = site.camps[i];
+        tent(g, (y + 0.5) * CELL, (x + 0.5) * CELL, 4, fill, "rgba(28,34,28,0.7)");
+      }
+    }
+  }
+}
+function tent(g, x, y, s, fill, ink) {
+  g.fillStyle = fill; g.strokeStyle = ink; g.lineWidth = 1.1;
+  g.beginPath(); g.moveTo(x, y - s); g.lineTo(x + s * 0.9, y + s * 0.8);
+  g.lineTo(x - s * 0.9, y + s * 0.8); g.closePath(); g.fill(); g.stroke();
+}
+
+// ---- main compositor --------------------------------------------------------------------------
 const canvas = document.getElementById("map");
 const ctx = canvas.getContext("2d");
 const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 function draw() {
   const ow = ownerAt(Math.floor(t));
+  refreshTerritoryCaches(ow);
   const sum = summaryAt(t), cents = centroids(ow);
-  drawOwnLayer(ow);
+  drawOwnLayer(ow, sum);
   ctx.clearRect(0, 0, 960, 960);
   ctx.drawImage(terrain, 0, 0);
   ctx.drawImage(ownLayer, 0, 0);
+  drawRoutes(ctx, sum, cents);
+  drawSites(ctx, sum, ow);
 
   for (const a of arcs) {
     const age = (now() - a.born) / 2500; if (age > 1) continue;
@@ -421,6 +741,19 @@ function draw() {
       ctx.fill();
     }
   }
+  for (const b of boats) {
+    const age = (now() - b.born) / b.dur; if (age > 1) continue;
+    const p = age;
+    const x = (b.ax + (b.bx - b.ax) * p) * CELL, y = (b.ay + (b.by - b.ay) * p) * CELL;
+    const ang = Math.atan2(b.by - b.ay, b.bx - b.ax);
+    b._x = x; b._y = y;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+    ctx.fillStyle = "#26333D"; ctx.strokeStyle = "rgba(240,246,248,0.8)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(-6, -2.5); ctx.lineTo(6, 0); ctx.lineTo(-6, 2.5);
+    ctx.quadraticCurveTo(-3, 0, -6, -2.5); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -6); ctx.stroke();
+    ctx.restore();
+  }
   for (const p of pulses) {
     const age = (now() - p.born) / (p.big ? 2000 : 1300); if (age > 1) continue;
     const ease = 1 - Math.pow(1 - age, 2);
@@ -431,6 +764,7 @@ function draw() {
   pulses = pulses.filter(p => (now() - p.born) < 2100);
   darts = darts.filter(d => (now() - d.born) < d.dur + 100);
   arcs = arcs.filter(a => (now() - a.born) < 2600);
+  boats = boats.filter(b => (now() - b.born) < b.dur + 100);
 
   ctx.textAlign = "center";
   for (const cid in cents) {
@@ -464,8 +798,8 @@ function draw() {
   drawDossier(sum);
 }
 
-// ---- the dossier: reader mode as an instrument -------------------------------------------
-const AXES = DATA.axes; // [[pos, neg] x 8]
+// ---- the dossier ----------------------------------------------------------------------------
+const AXES = DATA.axes;
 let dossierKey = "";
 function meanAt(sum, cid) { return (sum.c[cid] || {}).mean || null; }
 function drawDossier(sum) {
@@ -475,11 +809,10 @@ function drawDossier(sum) {
   panel.hidden = false; empty.hidden = true;
   const a = sum.c[selA];
   const era = String(Math.floor(sum.tick / DATA.era_ticks));
-
-  const key = `${Math.floor(t / 4)}|${selA}|${selB}`;
+  const key = `${Math.floor(t / 4)}|${selA}|${selB}|${colorMode}`;
   if (key !== dossierKey) {
     dossierKey = key;
-    document.getElementById("d-swatch").style.background = cultureColor(selA);
+    document.getElementById("d-swatch").style.background = colorOf(selA, sum);
     document.getElementById("d-name").innerHTML = nameOf(selA) +
       (selB !== null ? ` <span class="vs">vs ${nameOf(selB)}</span>` : "");
     if (!a) {
@@ -487,8 +820,10 @@ function drawDossier(sum) {
       document.getElementById("d-sketch").textContent = "";
     } else {
       const gloss = DATA.glosses[a.cfg] || "a way of living the record does not gloss";
+      const home = (DATA.home || {})[selA];
       document.getElementById("d-status").innerHTML =
         `<b>${fmt(a.pop)}</b> souls · their year: <i>${gloss}</i>` +
+        (home ? ` · of the ${home}` : "") +
         (a.fused ? `<span class="badge fused">fused polity</span>` : "") +
         (a.switching ? `<span class="badge">turns with the seasons</span>` : "");
       const sk = (DATA.sketches[era] || {})[selA];
@@ -514,7 +849,6 @@ function drawDossier(sum) {
       } else { cmp.hidden = false; cmp.innerHTML = "One of the two is not among the living here."; }
     } else cmp.hidden = true;
   }
-
   drawValueBars(sum);
   drawDomBars(a);
 }
@@ -536,18 +870,18 @@ function drawValueBars(sum) {
     g.textAlign = "left";
     g.fillText(AXES[k][0], cx + half + 6, y + 3);
     if (mA) {
-      g.fillStyle = cultureColor(selA, 0.9);
+      g.fillStyle = colorOf(selA, sum, 0.9);
       const w = mA[k] * half;
       g.beginPath(); g.roundRect(Math.min(cx, cx + w), y - 5, Math.abs(w), 10, 3); g.fill();
     }
     const sal = (sum.c[selA] || {}).sal;
-    if (sal && sal[k] > 0.4) {  // contact history has made this axis contested ground
+    if (sal && sal[k] > 0.4) {
       g.fillStyle = css("--accent");
       g.beginPath(); g.moveTo(cx, y - 13); g.lineTo(cx - 4, y - 7); g.lineTo(cx + 4, y - 7);
       g.closePath(); g.fill();
     }
     if (mB) {
-      g.strokeStyle = cultureColor(selB, 1, 38); g.lineWidth = 1.8;
+      g.strokeStyle = colorOf(selB, sum, 1, 38); g.lineWidth = 1.8;
       const w = mB[k] * half;
       g.beginPath(); g.roundRect(Math.min(cx, cx + w), y - 7, Math.max(1, Math.abs(w)), 14, 3); g.stroke();
     }
@@ -577,15 +911,15 @@ function drawDomBars(a) {
   }
 }
 
-// ---- value space: schismogenesis made watchable ------------------------------------------
+// ---- value space: schismogenesis made watchable, factions as satellites ----------------------
 const axX = document.getElementById("ax-x"), axY = document.getElementById("ax-y");
 DATA.axes.forEach((a, i) => {
   axX.add(new Option(`${a[1]} ↔ ${a[0]}`, i));
   axY.add(new Option(`${a[1]} ↔ ${a[0]}`, i));
 });
-axX.value = 0; axY.value = 4;  // rank/equality × accumulation/distribution
+axX.value = 0; axY.value = 4;
 const spaceCv = document.getElementById("space");
-let spacePos = {};  // cid -> [x, y] of latest point, for click/hover
+let spacePos = {};
 
 function drawSpace(sum, idx) {
   const g = spaceCv.getContext("2d"), W = spaceCv.width, H = spaceCv.height, pad = 30;
@@ -612,18 +946,31 @@ function drawSpace(sum, idx) {
     if (!trail.length) continue;
     const chosen = +cid === selA || +cid === selB;
     const dim = selA !== null && !chosen;
-    g.strokeStyle = cultureColor(cid, dim ? 0.12 : 0.35); g.lineWidth = 1.5;
+    g.strokeStyle = colorOf(+cid, sum, dim ? 0.12 : 0.35); g.lineWidth = 1.5;
     g.beginPath();
     trail.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]));
     g.stroke();
     const [x, y] = trail[trail.length - 1];
     spacePos[cid] = [x, y];
     const r = Math.max(3, Math.min(7, 2 + Math.sqrt(sum.c[cid].pop) / 22));
-    g.fillStyle = cultureColor(cid, dim ? 0.3 : 0.95);
+    g.fillStyle = colorOf(+cid, sum, dim ? 0.3 : 0.95);
     g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
     if (chosen) {
-      g.strokeStyle = cultureColor(cid, 1, 30); g.lineWidth = 2;
+      g.strokeStyle = colorOf(+cid, sum, 1, 30); g.lineWidth = 2;
       g.beginPath(); g.arc(x, y, r + 2.5, 0, 7); g.stroke();
+      // factions as satellites: internal variance is the fuel for liberation,
+      // and a defection is a satellite detaching toward a neighbor's cloud
+      const fx = sum.c[cid].fx, m = sum.c[cid].mean;
+      if (fx && m) {
+        for (const f of fx) {
+          const fm = m.map((v, k) => clamp1(v + f[k + 1]));
+          const [sx, sy] = XY(fm);
+          g.strokeStyle = colorOf(+cid, sum, 0.4); g.lineWidth = 0.8;
+          g.beginPath(); g.moveTo(x, y); g.lineTo(sx, sy); g.stroke();
+          g.fillStyle = colorOf(+cid, sum, 0.85, 40);
+          g.beginPath(); g.arc(sx, sy, 1.5 + f[0] * 5, 0, 7); g.fill();
+        }
+      }
     }
     if (sum.c[cid].fused) {
       g.strokeStyle = "rgba(28,34,28,0.8)"; g.lineWidth = 1.3;
@@ -655,7 +1002,7 @@ spaceCv.addEventListener("mousemove", e => {
 });
 spaceCv.addEventListener("mouseleave", () => tip.style.opacity = 0);
 
-// ---- density strip -----------------------------------------------------------------------
+// ---- density strip -----------------------------------------------------------------------------
 const density = document.getElementById("density");
 (function drawDensity() {
   const g = density.getContext("2d");
@@ -670,13 +1017,15 @@ density.addEventListener("click", e => {
   seekTo(Math.round((e.clientX - r.left) / r.width * T_END));
 });
 
-// ---- playback --------------------------------------------------------------------------------
+// ---- playback -------------------------------------------------------------------------------------
 let last = now();
 function loop(ts) {
   const dt = Math.min(100, ts - last); last = ts;
   if (playing) {
     t = Math.min(T_END, t + speed * dt / 1000);
-    fire(Math.floor(t), centroids(ownerAt(Math.floor(t))));
+    const ow = ownerAt(Math.floor(t));
+    refreshTerritoryCaches(ow);
+    fire(Math.floor(t), centroids(ow));
     if (t >= T_END) setPlaying(false);
   }
   draw();
@@ -690,7 +1039,8 @@ function setPlaying(p) {
 function seekTo(tick) {
   t = Math.max(0, Math.min(T_END, tick));
   seekPtrs(t); tickerReset(t);
-  pulses = []; darts = []; arcs = [];
+  pulses = []; darts = []; arcs = []; boats = [];
+  ownVersion = "";
 }
 document.getElementById("play").addEventListener("click", () => setPlaying(!playing));
 document.getElementById("speed").addEventListener("change", e => speed = +e.target.value);
@@ -703,14 +1053,7 @@ addEventListener("keydown", e => {
   if (e.code === "ArrowLeft") seekTo(t - 4);
 });
 
-// ---- selection & hover -------------------------------------------------------------------------
-function cellAt(e) {
-  const r = canvas.getBoundingClientRect();
-  const y = Math.floor((e.clientX - r.left) / r.width * G);
-  const x = Math.floor((e.clientY - r.top) / r.height * G);
-  if (x < 0 || y < 0 || x >= G || y >= G) return null;
-  return [x, y];
-}
+// ---- selection & hover ------------------------------------------------------------------------------
 function selectCulture(o) {
   if (o === null || o < 0) { selA = selB = null; }
   else if (selA === null) selA = o;
@@ -719,25 +1062,61 @@ function selectCulture(o) {
   else selB = o;
   dossierKey = ""; ownVersion = "";
 }
+function cellAt(e) {
+  const r = canvas.getBoundingClientRect();
+  const y = Math.floor((e.clientX - r.left) / r.width * G);
+  const x = Math.floor((e.clientY - r.top) / r.height * G);
+  if (x < 0 || y < 0 || x >= G || y >= G) return null;
+  return [x, y];
+}
+function boatAt(e) {
+  const r = canvas.getBoundingClientRect();
+  const px = (e.clientX - r.left) / r.width * 960;
+  const py = (e.clientY - r.top) / r.height * 960;
+  for (const b of boats) {
+    if (b._x === undefined) continue;
+    if ((b._x - px) ** 2 + (b._y - py) ** 2 < 15 * 15) return b;
+  }
+  return null;
+}
+const tip = document.getElementById("tip");
 canvas.addEventListener("click", e => {
+  const b = boatAt(e);
+  if (b) {  // every boat is somebody's boat, with an errand you can ask about
+    tip.innerHTML = `<b>${b.owner}</b> of the ${nameOf(b.from)} — ${b.errand}.`;
+    tip.style.opacity = 1;
+    tip.style.left = Math.min(e.clientX + 14, innerWidth - 290) + "px";
+    tip.style.top = (e.clientY + 14) + "px";
+    return;
+  }
   const c = cellAt(e); if (!c) return;
   selectCulture(ownerAt(Math.floor(t))[c[0]][c[1]]);
 });
-document.getElementById("d-close").addEventListener("click", () => {
-  selA = selB = null; dossierKey = ""; ownVersion = "";
-});
-const tip = document.getElementById("tip");
 canvas.addEventListener("mousemove", e => {
+  const b = boatAt(e);
+  if (b) {
+    tip.innerHTML = `<b>${b.owner}</b> of the ${nameOf(b.from)} — ${b.errand}.`;
+    tip.style.opacity = 1;
+    tip.style.left = Math.min(e.clientX + 14, innerWidth - 290) + "px";
+    tip.style.top = (e.clientY + 14) + "px";
+    return;
+  }
   const c = cellAt(e); if (!c) { tip.style.opacity = 0; return; }
-  const o = ownerAt(Math.floor(t))[c[0]][c[1]];
+  const [x, y] = c;
+  const o = ownerAt(Math.floor(t))[x][y];
   const sum = summaryAt(t);
-  tip.innerHTML = o < 0 ? "unclaimed" :
-    `<b>${nameOf(o)}</b>` + (sum.c[o] ? ` · ${fmt(sum.c[o].pop)} souls` : "");
+  const wtr = WATER[x][y];
+  tip.innerHTML = o >= 0
+    ? `<b>${nameOf(o)}</b>` + (sum.c[o] ? ` · ${fmt(sum.c[o].pop)} souls` : "")
+    : wtr === 1 ? "open water" : wtr === 2 ? "still water" : "unclaimed";
   tip.style.opacity = 1;
   tip.style.left = Math.min(e.clientX + 14, innerWidth - 180) + "px";
   tip.style.top = (e.clientY + 14) + "px";
 });
 canvas.addEventListener("mouseleave", () => tip.style.opacity = 0);
+document.getElementById("d-close").addEventListener("click", () => {
+  selA = selB = null; dossierKey = ""; ownVersion = "";
+});
 
 seekPtrs(0); tickerReset(0);
 if (reduced) setPlaying(false); else setPlaying(true);

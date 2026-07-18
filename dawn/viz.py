@@ -39,6 +39,10 @@ def world_snapshot(world) -> dict:
         # Elevation ships in mils for rendering relief; it never drives culture.
         "elevation": (np.asarray(world.elevation) * 1000).astype(int).tolist()
                      if world.elevation is not None else None,
+        "water": world.water.astype(int).tolist() if world.water is not None else None,
+        "rivers": world.river_segments,
+        "features": world.features,
+        "home": {str(k): v for k, v in world.home_feature.items()},
         "glosses": glosses,
         "configs": configs,        # eid -> season->structure map (VIEWER.md §1.2)
         "structures": structures,  # structure id -> authority/pooling/settlement/roles
@@ -53,6 +57,9 @@ def _ensure_world_json(run_dir: Path, meta: dict, records: list[dict]) -> dict:
     path = run_dir / "world.json"
     if path.exists():
         snap = json.loads(path.read_text())
+        # "water" may be absent on runs from before hydrology existed; such
+        # worlds cannot be reconstructed under the new worldgen (their journal
+        # belongs to the old world), so we take the snapshot as-is.
         if "owner0" in snap and snap.get("elevation") is not None:
             return snap
     # Older run dir: rebuild the world from its own journal. Slow but exact.
@@ -155,6 +162,7 @@ def build_watch_data(run_dir: Path) -> dict:
                               "mean": [round(float(x), 2) for x in c["mean"]],
                               "sal": [round(float(x), 2) for x in c["salience"]]
                                      if "salience" in c else None,
+                              "fx": c.get("factions"),
                               "cfg": c.get("dominant")}
                         for cid, c in s["cultures"].items()}}
                  for s in sums]
@@ -196,6 +204,10 @@ def build_watch_data(run_dir: Path) -> dict:
         "seed": meta["seed"], "ticks": meta["ticks"], "grid": world["grid"],
         "biome": world["biome"], "owner0": world["owner0"],
         "elevation": world.get("elevation"),
+        "water": world.get("water"),
+        "rivers": world.get("rivers", []),
+        "features": world.get("features", []),
+        "home": world.get("home", {}),
         "glosses": world.get("glosses", {}),
         "configs": world.get("configs", {}),
         "structures": world.get("structures", {}),

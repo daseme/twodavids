@@ -129,6 +129,11 @@ def render(event: dict, author: Culture, world: World) -> tuple[str, list[str]]:
     else:
         body = f"a thing worth telling happened among the {name}."
 
+    # The annalist has geography: journeys run by named waters.
+    if et in ("defection", "schism", "feast") and event.get("tick", world.tick) % 2 == 0:
+        feat = world.home_feature.get(event.get("culture", -1))
+        if feat:
+            body += f" Their road ran by the {feat}."
     if t["grand"]:
         body = body.replace("chief", "great chief").replace("feasted", "feasted magnificently")
     if t["martial"] and et in ("schism", "extinction"):

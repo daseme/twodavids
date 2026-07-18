@@ -26,6 +26,9 @@ class Params:
     rho_exchange: float = 0.6          # predator 4: ritualized exchange damps repulsion
     exchange_duration: int = 24        # ticks a feast keeps an exchange edge warm
     symmetric_pop_ratio: float = 2.0   # rivalry needs rough parity, else complementary
+    water_contact_boost: float = 0.6   # waterside borders carry more contact
+    sea_route_weight: float = 0.35     # contact across a shared sea/lake, no land border
+    sea_route_min_shore: int = 3       # shore cells needed to work a water body
 
     # --- material pricing (stochastic and pricing, never determining) --------
     kappa_extremity: float = 0.45      # predator 1: quadratic price of caloric extremity

@@ -97,6 +97,8 @@ class Edge:
     border: int = 0               # shared border cells (contact intensity)
     exchange_until: int = -1      # ritualized exchange predator: feast keeps it warm
     traffic: int = 0              # defections along this route (scar material)
+    water_frac: float = 0.0       # share of the border that runs along water
+    sea_route: bool = False       # contact across a shared sea or lake, not a land border
 
     def openness(self, cultures: dict[int, Culture]) -> float:
         oa, ob = cultures[self.a].openness(), cultures[self.b].openness()

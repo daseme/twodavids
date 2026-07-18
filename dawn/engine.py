@@ -521,7 +521,12 @@ class Engine:
                                      "dominant": c.dominant_config,
                                      "switching": c.is_switching(),
                                      "fused": c.fused,
-                                     "domination": c.domination}
+                                     "domination": c.domination,
+                                     # internal variance is the fuel for liberation;
+                                     # export it so it can be *seen*
+                                     "factions": [[round(f.weight, 3)]
+                                                  + [round(float(x), 2) for x in f.offset]
+                                                  for f in c.factions]}
                              for c in w.living()}}
 
     def run(self, n_ticks: int, progress: bool = False) -> None:
