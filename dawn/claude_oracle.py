@@ -72,6 +72,63 @@ KIND_NOTES = {
         "once; the question is whether that matters."),
 }
 
+# --- the neutral variant (studies/promotion-interim.md) ----------------------
+# The audit of the first promoted run found four features of the prompt that
+# could inflate the model's hospitality bias rather than reveal it. This
+# variant removes them so the ablation isolates the model's own prior:
+#
+# 1. The encounter note staged a hosting scene ("travelers sit at the fires
+#    tonight"), of which feast is the natural completion. NEUTRAL_NOTES name
+#    the situation without staging its resolution.
+# 2. The menu arrived alphabetised from the engine, so `affirm` was always
+#    first. The neutral variant shuffles it per call, deterministically.
+# 3. `feast` carried the most vivid and morally flattering gloss on the menu
+#    ("giving until the ledger is shamed") while `invert` was abstract.
+#    NEUTRAL_GLOSS levels register and concreteness across the moves.
+#
+# The fourth artifact — the stub receives Bateson as numeric priors that the
+# model never sees — is deliberately NOT patched by injecting counter-theory.
+# Telling the model that contact sharpens difference would swap one thumb on
+# the scale for another. The question is what it does when the situation is
+# described without a preferred answer, so the neutral variant is neutral,
+# not counter-biased. This leaves the comparison honestly asymmetric, and the
+# asymmetry is documented rather than hidden.
+NEUTRAL_NOTES = {
+    "contradiction": (
+        "What the way of living promises and what this faction actually eats "
+        "and endures have come apart, and the difference is now spoken of "
+        "openly. The matter is before the people."),
+    "encounter": (
+        "A party from another people is here, and their ways are not ours. "
+        "What passes between the two peoples now is undecided."),
+    "ratchet_crisis": (
+        "The season turned and the one who leads did not step down. The camps "
+        "did not scatter as they always have. What is said in the next days "
+        "may decide whether this is an outrage or the new way of things."),
+    "recovery": (
+        "The old tellings have been read or sung again, and they describe ways "
+        "of living that no one now alive has practiced. It was done otherwise "
+        "once; the question is whether that matters."),
+}
+
+# Same moves, levelled: comparable concreteness, no move carrying more moral
+# glamour than its neighbours. Keyed by stance id; anything absent falls back
+# to the sim's own gloss. These are presentation only — the sim's glosses in
+# repertoire.py are untouched, because they feed prompt_hash and every
+# existing journal replays against them.
+NEUTRAL_GLOSS = {
+    "affirm": "say our ways are good and should go on unchanged",
+    "submit": "grant that those who lead should be obeyed in this",
+    "refuse": "refuse what is asked, whatever it costs us",
+    "mock": "meet the great one's claim with laughter",
+    "leave": "strike camp and go to kin who will take us in",
+    "invert": "do the opposite of what they do in this matter, on purpose",
+    "emulate": "take up their way in this matter instead of ours",
+    "remember": "do it again as the old tellings say it was done",
+    "feast": "give a feast and spend our stores on them",
+    "propose": "try a way no one here has tried",
+}
+
 SYSTEM = """You are the deliberative voice inside a generated pre-modern world — one faction's speaker in a moment of cultural argument.
 
 The world is invented and its peoples are not yours: you will be given an ethnographic description of who they are, and you must choose and argue as THEY would — by their values, their pride, their fears — not as you would, and not as a modern person would. Their values may be repugnant or admirable; voice them faithfully either way.
@@ -90,9 +147,14 @@ class ClaudeOracle:
     """Live stance selection for promoted deliberation kinds; stub otherwise."""
 
     def __init__(self, seed: int, model: str = "claude-sonnet-5",
-                 promoted: frozenset[str] = DEFAULT_PROMOTED) -> None:
+                 promoted: frozenset[str] = DEFAULT_PROMOTED,
+                 variant: str = "original") -> None:
         self.model = model
-        self.model_id = f"{model}+stub"
+        self.variant = variant
+        # The variant rides in the model tag, so a journal says which prompt
+        # produced it and an ablation cannot be mistaken for a rerun.
+        self.tag = model if variant == "original" else f"{model}#{variant}"
+        self.model_id = f"{self.tag}+stub"
         self.promoted = promoted
         self.rng = np.random.default_rng(seed ^ 0xC1A0DE)
         self.stub = StubOracle(self.rng)
@@ -170,14 +232,31 @@ class ClaudeOracle:
                 f"{speaker['traits'][0]} and {speaker['traits'][1]}, stood and said: "
                 f"“{argument}”")
         return Utterance(stance_id=stance_id, text=text, speaker=speaker,
-                         model=self.model)
+                         model=self.tag)
+
+    def _menu_order(self, situation: Situation) -> list:
+        """Alphabetical (the engine's order) unless the neutral variant is
+        running, which shuffles per call so no move owns first place. Seeded
+        from the situation alone, so the same call always shows the same
+        order and the ablation is reproducible."""
+        if self.variant != "neutral":
+            return list(situation.menu)
+        key = f"{situation.tick}|{situation.culture}|{situation.faction}|{situation.kind}"
+        r = np.random.default_rng(
+            int.from_bytes(hashlib.sha256(key.encode()).digest()[8:16], "big"))
+        menu = list(situation.menu)
+        r.shuffle(menu)
+        return menu
 
     def _call(self, sketch: str, situation: Situation) -> tuple[str, str]:
-        menu = "\n".join(f"- {s.eid}: {s.gloss}" for s in situation.menu)
+        notes = NEUTRAL_NOTES if self.variant == "neutral" else KIND_NOTES
+        gloss = ((lambda s: NEUTRAL_GLOSS.get(s.eid, s.gloss))
+                 if self.variant == "neutral" else (lambda s: s.gloss))
+        menu = "\n".join(f"- {s.eid}: {gloss(s)}" for s in self._menu_order(situation))
         detail = {k: v for k, v in situation.detail.items() if k != "injected"}
         user = (
             f"The people, as an ethnographer would describe them:\n{sketch}\n\n"
-            f"The situation: {KIND_NOTES.get(situation.kind, situation.kind)}\n"
+            f"The situation: {notes.get(situation.kind, situation.kind)}\n"
             + (f"Particulars: {json.dumps(detail, sort_keys=True)}\n" if detail else "")
             + f"\nThe moves this people can think — choose exactly one by id:\n{menu}\n\n"
             f"Speak as one voice of the {situation.faction_name} among the "

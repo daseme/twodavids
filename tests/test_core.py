@@ -175,6 +175,44 @@ def test_promotion_stops_rather_than_degrading():
     assert o.calls == 8 and o.fallbacks == 52
 
 
+def test_neutral_prompt_variant_changes_only_what_the_model_sees():
+    """The ablation prompt must move the model's view and nothing else: the
+    sim's glosses feed prompt_hash, so touching them would break the replay
+    of every existing journal."""
+    from dawn.claude_oracle import ClaudeOracle
+    from dawn.oracle import Situation
+    from dawn.repertoire import primordial_stances
+
+    # The engine hands the oracle an alphabetised menu (engine.menu_for),
+    # which is the position bias the ablation removes; mimic that here.
+    menu = sorted(primordial_stances(), key=lambda s: s.eid)
+    sit = Situation(kind="encounter", culture=0, culture_name="Aa",
+                    faction="0.0", faction_name="Bb", tick=7, detail={},
+                    menu=menu, faction_values=np.zeros(8))
+
+    orig, neu = ClaudeOracle(1), ClaudeOracle(1, variant="neutral")
+    assert orig.tag == "claude-sonnet-5"
+    assert neu.tag == "claude-sonnet-5#neutral"      # journals self-describe
+
+    # Menu order: alphabetical for the original, shuffled but deterministic
+    # for the ablation.
+    a = [s.eid for s in orig._menu_order(sit)]
+    b = [s.eid for s in neu._menu_order(sit)]
+    assert a == sorted(a) and a[0] == "affirm"
+    assert b != a and sorted(b) == sorted(a)
+    assert b == [s.eid for s in neu._menu_order(sit)]   # reproducible
+
+    # A different situation gets a different order (no fixed permutation).
+    sit2 = Situation(kind="encounter", culture=1, culture_name="Aa",
+                     faction="1.0", faction_name="Bb", tick=9, detail={},
+                     menu=menu, faction_values=np.zeros(8))
+    assert [s.eid for s in neu._menu_order(sit2)] != b
+
+    # The sim's own data is untouched: glosses still say what repertoire says.
+    feast = next(s for s in menu if s.eid == "feast")
+    assert "ledger is shamed" in feast.gloss
+
+
 def test_resume_continues_an_interrupted_run(tmp_path):
     """Interruption insurance: seed + journal prefix + live oracle = a valid
     continued world. The prefix must survive byte-identical, and the resumed

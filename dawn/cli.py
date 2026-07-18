@@ -22,8 +22,9 @@ def cmd_run(args: argparse.Namespace) -> None:
         from .claude_oracle import ClaudeOracle
         promoted = frozenset(args.promote.split(",")) if args.promote else None
         oracle = ClaudeOracle(args.seed, model=args.oracle_model,
+                              variant=args.prompt_variant,
                               **({"promoted": promoted} if promoted else {}))
-        print(f"promotion live: {oracle.model} decides "
+        print(f"promotion live: {oracle.tag} decides "
               f"{', '.join(sorted(oracle.promoted))}; stub keeps the rest")
     if args.resume:
         # Read and back up the prefix BEFORE Engine truncates the journal.
@@ -251,6 +252,11 @@ def main() -> None:
     r.add_argument("--promote", type=str, default=None,
                    help="comma-separated deliberation kinds the model decides "
                         "(default: contradiction,encounter,ratchet_crisis,recovery)")
+    r.add_argument("--prompt-variant", choices=["original", "neutral"],
+                   default="original",
+                   help="neutral: the ablation prompt — unstaged situation "
+                        "framing, shuffled menu, levelled glosses "
+                        "(studies/promotion-interim.md)")
     r.add_argument("--resume", action="store_true",
                    help="continue an interrupted run in --out: replay the "
                         "recorded journal prefix (no API cost), then go live")
