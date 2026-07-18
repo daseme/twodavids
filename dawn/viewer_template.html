@@ -446,8 +446,52 @@ const HEIGHT = 7.5;
 const terrainGeo = new THREE.PlaneGeometry(G, G, G - 1, G - 1);
 terrainGeo.rotateX(-Math.PI / 2);
 const pos = terrainGeo.attributes.position;
-const baseHeight = (x, y) =>
-  DATA.water[x][y] ? -0.06 : (DATA.elevation[x][y] / 1000) * HEIGHT;
+// Distance in cells to the nearest water, and to the nearest land — a two-pass
+// chamfer sweep, close enough for shading and banks. Both drive the shore.
+function distanceTo(pred) {
+  const INF = 1e6, d = Array.from({length: G}, () => new Float32Array(G).fill(INF));
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) if (pred(x, y)) d[x][y] = 0;
+  const relax = (x, y, ox, oy, w) => {
+    if (ox < 0 || oy < 0 || ox >= G || oy >= G) return;
+    if (d[ox][oy] + w < d[x][y]) d[x][y] = d[ox][oy] + w;
+  };
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
+    relax(x, y, x - 1, y, 1); relax(x, y, x, y - 1, 1);
+    relax(x, y, x - 1, y - 1, 1.414); relax(x, y, x + 1, y - 1, 1.414);
+  }
+  for (let x = G - 1; x >= 0; x--) for (let y = G - 1; y >= 0; y--) {
+    relax(x, y, x + 1, y, 1); relax(x, y, x, y + 1, 1);
+    relax(x, y, x + 1, y + 1, 1.414); relax(x, y, x - 1, y + 1, 1.414);
+  }
+  return d;
+}
+const distWater = distanceTo((x, y) => DATA.water[x][y]);
+const distLand = distanceTo((x, y) => !DATA.water[x][y]);
+
+// The shore, softened. Cell-quantised water reads as rectangles because the
+// land falls off a cliff at the cell edge; here the last two cells of land ramp
+// down into the water instead, with a noisy lip so the waterline stops being
+// axis-aligned. This does move the visible edge — up to about half a cell
+// inside the shore cell — which is a deliberate trade: *which* cells are water
+// is still exactly what the record says, but where the line falls within the
+// shore cell is now the viewer's invention, like the ridgelines above.
+// Offshore, the bed drops away with distance from land so the water reads deep
+// in the middle and shallow at the margins.
+const BANK = 2.1;
+const baseHeight = (x, y) => {
+  if (DATA.water[x][y])
+    return -0.06 - Math.min(1, distLand[x][y] / 3.2) * 0.85;
+  const h = (DATA.elevation[x][y] / 1000) * HEIGHT;
+  // The first ring of land sits at the waterline itself (t = 1 there), which is
+  // what lets the lip noise carry it to either side and the shore stop being a
+  // straight cell edge. Ramping from t < 1 only tilts the bank; the line stays
+  // pinned to the grid, which is the whole thing we are trying to lose.
+  const t = Math.max(0, Math.min(1, 1 - (distWater[x][y] - 1) / BANK));
+  if (t <= 0) return h;
+  const k = t * t * (3 - 2 * t);
+  const lip = (fbm(x * 0.85, y * 0.85, NSEED + 1300) - 0.5) * 0.42;
+  return h * (1 - k * 0.94) - k * 0.115 + k * lip;
+};
 // The elaboration rule (§0): the record gives one elevation per cell, so the
 // ridgelines between cells are its silence, not its claim. We decorate that
 // silence deterministically — and only inland. Displacement fades to nothing
@@ -495,11 +539,87 @@ const terrain = new THREE.Mesh(terrainGeo,
   new THREE.MeshLambertMaterial({vertexColors: true}));
 scene.add(terrain);
 
-// Water sheet + rivers.
-const water = new THREE.Mesh(new THREE.PlaneGeometry(G, G),
-  new THREE.MeshLambertMaterial({color: 0x39506b, transparent: true, opacity: 0.92}));
-water.rotateX(-Math.PI / 2); water.position.y = -0.03;
+// The skirt: without it the map is a plate floating on the sky, which the dark
+// background used to hide and a lit one does not. The world's edge is not a
+// claim about anything — the record simply stops there — so we give it the one
+// honest reading available, a block of ground cut through, darkening downward.
+{
+  const rim = [];
+  for (let x = 0; x < G; x++) rim.push([x, 0]);
+  for (let y = 1; y < G; y++) rim.push([G - 1, y]);
+  for (let x = G - 2; x >= 0; x--) rim.push([x, G - 1]);
+  for (let y = G - 2; y >= 1; y--) rim.push([0, y]);
+  const FLOOR = -6.5;
+  const TOP = new THREE.Color(0x6b5a3f), MID = new THREE.Color(0x4a3f2e),
+        BOT = new THREE.Color(0x1d1812);
+  const vs = [], cs = [], _sc = new THREE.Color();
+  const band = (t) => (t < 0.5 ? _sc.copy(TOP).lerp(MID, t * 2)
+                               : _sc.copy(MID).lerp(BOT, (t - 0.5) * 2));
+  // Two rows so the gradient bends rather than ramping flat top to bottom.
+  const push = (x, y, h, t) => {
+    vs.push(x - G / 2, h, y - G / 2);
+    const c = band(t); cs.push(c.r, c.g, c.b);
+  };
+  for (let i = 0; i < rim.length; i++) {
+    const [ax, ay] = rim[i], [bx, by] = rim[(i + 1) % rim.length];
+    const ha = Math.max(0, heightAt(ax, ay)), hb = Math.max(0, heightAt(bx, by));
+    const ma = ha * 0.35 + FLOOR * 0.65, mb = hb * 0.35 + FLOOR * 0.65;
+    // top strip
+    push(ax, ay, ha, 0); push(bx, by, hb, 0); push(bx, by, mb, 0.62);
+    push(ax, ay, ha, 0); push(bx, by, mb, 0.62); push(ax, ay, ma, 0.62);
+    // lower strip down to the floor
+    push(ax, ay, ma, 0.62); push(bx, by, mb, 0.62); push(bx, by, FLOOR, 1);
+    push(ax, ay, ma, 0.62); push(bx, by, FLOOR, 1); push(ax, ay, FLOOR, 1);
+  }
+  const skirtGeo = new THREE.BufferGeometry();
+  skirtGeo.setAttribute("position", new THREE.Float32BufferAttribute(vs, 3));
+  skirtGeo.setAttribute("color", new THREE.Float32BufferAttribute(cs, 3));
+  skirtGeo.computeVertexNormals();
+  scene.add(new THREE.Mesh(skirtGeo, new THREE.MeshLambertMaterial(
+    {vertexColors: true, side: THREE.DoubleSide})));
+  // A floor, so the underside is ground and not a hole into the sky.
+  const cap = new THREE.Mesh(new THREE.PlaneGeometry(G, G),
+    new THREE.MeshBasicMaterial({color: 0x140f0b}));
+  cap.rotateX(Math.PI / 2); cap.position.y = FLOOR;
+  scene.add(cap);
+}
+
+// Water sheet + rivers. The sheet is subdivided so it can carry a depth tint —
+// shallow and warm where it laps the bank, cold and dark over the deep — and so
+// it has vertices to move. Colours go through THREE.Color rather than into the
+// buffer raw, for the same reason the sky does.
+const waterGeo = new THREE.PlaneGeometry(G, G, G - 1, G - 1);
+waterGeo.rotateX(-Math.PI / 2);
+const wpos = waterGeo.attributes.position;
+const SHALLOW = new THREE.Color(0x5b7f92), DEEP = new THREE.Color(0x27405c);
+const _wc = new THREE.Color();
+{
+  const wcol = new Float32Array(wpos.count * 3);
+  for (let i = 0; i < wpos.count; i++) {
+    const x = Math.min(G - 1, i % G), y = Math.min(G - 1, Math.floor(i / G));
+    const deep = Math.min(1, distLand[x][y] / 3.6);
+    _wc.copy(SHALLOW).lerp(DEEP, deep * deep * (3 - 2 * deep));
+    wcol[i * 3] = _wc.r; wcol[i * 3 + 1] = _wc.g; wcol[i * 3 + 2] = _wc.b;
+  }
+  waterGeo.setAttribute("color", new THREE.BufferAttribute(wcol, 3));
+}
+const waterBaseY = new Float32Array(wpos.count);
+for (let i = 0; i < wpos.count; i++) waterBaseY[i] = wpos.getY(i);
+const water = new THREE.Mesh(waterGeo, new THREE.MeshLambertMaterial(
+  {vertexColors: true, transparent: true, opacity: 0.88}));
+water.position.y = -0.03;
 scene.add(water);
+// Gentle swell: two crossed waves, small enough that nothing floating on it
+// needs to know. Boats hold their own fixed waterline.
+function updateWater(now) {
+  const t = now * 0.0004;
+  for (let i = 0; i < wpos.count; i++) {
+    const x = i % G, y = Math.floor(i / G);
+    wpos.array[i * 3 + 1] = waterBaseY[i]
+      + Math.sin(x * 0.42 + t) * 0.022 + Math.sin(y * 0.31 - t * 1.3) * 0.018;
+  }
+  wpos.needsUpdate = true;
+}
 {
   const pts = [];
   for (const [x1, y1, x2, y2] of DATA.rivers)
@@ -1332,6 +1452,9 @@ function plantForest() {
   const place = {broad: [], pine: []};
   for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
     if (DATA.water[x][y]) continue;
+    // A softened bank can dip a shore cell under the waterline; nothing is
+    // planted where the sheet would close over it.
+    if (heightAt(x, y) < 0.05) continue;
     if (cleared.has(x * 1000 + y)) continue;
     const [density, pineShare] = VEG_BY_INDEX[DATA.biome[x][y]] || VEG_BY_INDEX[0];
     // Fractional density becomes a probability, so a sparse biome scatters
@@ -1995,6 +2118,7 @@ function frame(now) {
   }
   directorStep(Math.floor(curTick), now);
   updateMotion(curTick, now);
+  updateWater(now);
   updateMargins(Math.floor(curTick));
   // Day/night as a slow sun swing (§2) — ambience, not record. Driven from the
   // clock whether or not it is running: paused at tick N the world now shows
