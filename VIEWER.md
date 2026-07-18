@@ -46,7 +46,13 @@ seed 3, household d0 of a seasonal people walks ~4 units out to the summer
 camps while the lodge scales away, and the same household of the lineage
 that ratcheted in year 431 walks 0. The ratchet is legible as an absence,
 exactly as specified.
-Still to come: interpolated camera paths between beats, sound.*
+The material world is named and worked: feature names from the record float
+as constant-size map labels (the Sholausreach, the Roraismere), water is
+flood-filled into bodies so the viewer knows who shares a shore, crossings
+between peoples on the same water go by boat rather than on foot — every boat
+is somebody's boat — and a jetty marks each waterside people's landing.
+Still to come: interpolated camera paths between beats, sound, rivers with
+more presence than a line.*
 
 ## 0. The architecture in one sentence
 

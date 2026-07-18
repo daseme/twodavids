@@ -355,6 +355,8 @@ const GEO = {
   crown: new THREE.TorusGeometry(0.09, 0.025, 6, 10),
   person: new THREE.CapsuleGeometry(0.018, 0.05, 2, 4),
   mound: new THREE.SphereGeometry(0.17, 6, 4, 0, 6.3, 0, 1.2),
+  boat: new THREE.ConeGeometry(0.09, 0.34, 4),
+  jetty: new THREE.BoxGeometry(0.13, 0.045, 0.62),
 };
 const MAT = {
   wood: new THREE.MeshLambertMaterial({color: 0x4a3b28}),
@@ -472,6 +474,89 @@ function layoutOf(cid, tick, sum, season) {
   const TEXTUAL = new Set(["banner", "crownUp", "axis", "trophy"]);
   const kept = conf === 1 ? spots.filter(s => !TEXTUAL.has(s.kind)) : spots;
   return {spots: kept, conf, key: `${archaeo ? "A" + conf : "L"}|${sum.tick}|${season}|${appliedTo}`};
+}
+
+// ---- the water: bodies, shores, and who can reach whom by boat --------------
+// The sim treats water as contact infrastructure, not scenery: peoples working
+// the same body are in contact across it, and families cross by boat. The
+// viewer needs the same topology to know whether a crossing is a walk or a
+// voyage, so we flood-fill the water into bodies once and read shores off the
+// territory. Rendering-only; nothing here feeds back.
+const bodyId = Array.from({length: G}, () => new Int16Array(G).fill(-1));
+{
+  let next = 0;
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
+    if (!DATA.water[x][y] || bodyId[x][y] >= 0) continue;
+    const id = next++, stack = [[x, y]];
+    bodyId[x][y] = id;
+    while (stack.length) {
+      const [cx, cy] = stack.pop();
+      for (const [nx, ny] of [[cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]]) {
+        if (nx < 0 || ny < 0 || nx >= G || ny >= G) continue;
+        if (!DATA.water[nx][ny] || bodyId[nx][ny] >= 0) continue;
+        bodyId[nx][ny] = id;
+        stack.push([nx, ny]);
+      }
+    }
+  }
+}
+let shores = {}, shoreVer = -2;
+function shoresAt(tick) {
+  if (shoreVer === appliedTo) return shores;
+  shoreVer = appliedTo;
+  const own = ownerAt(tick);
+  shores = {};
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
+    if (!DATA.water[x][y]) continue;
+    for (const [nx, ny] of [[x+1,y],[x-1,y],[x,y+1],[x,y-1]]) {
+      if (nx < 0 || ny < 0 || nx >= G || ny >= G) continue;
+      const p = own[nx][ny];
+      if (p >= 0) (shores[p] ||= new Set()).add(bodyId[x][y]);
+    }
+  }
+  return shores;
+}
+function waterLinked(a, b, tick) {
+  const s = shoresAt(tick), sa = s[a], sb = s[b];
+  return !!(sa && sb && [...sa].some(v => sb.has(v)));
+}
+
+// ---- named geography: the map says what the people call it ------------------
+// Feature names come straight from the record (names.water_name); the label is
+// the only invention and it invents nothing — it repeats what the bundle says.
+const labelGroup = new THREE.Group();
+scene.add(labelGroup);
+function makeLabel(text, kind) {
+  const pad = 8, font = 44;
+  const meas = document.createElement("canvas").getContext("2d");
+  meas.font = `italic ${font}px Palatino, Georgia, serif`;
+  const w = Math.ceil(meas.measureText(text).width) + pad * 2;
+  const cv = document.createElement("canvas");
+  cv.width = w; cv.height = font + pad * 2;
+  const g = cv.getContext("2d");
+  g.font = `italic ${font}px Palatino, Georgia, serif`;
+  g.textAlign = "center"; g.textBaseline = "middle";
+  g.lineWidth = 7; g.strokeStyle = "rgba(15,12,9,0.75)";
+  g.strokeText(text, cv.width / 2, cv.height / 2);
+  g.fillStyle = kind === "range" ? "#e6dcc4" : "#bfe0f2";
+  g.fillText(text, cv.width / 2, cv.height / 2);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.minFilter = THREE.LinearFilter;
+  // sizeAttenuation off: a place name is map furniture, so it holds its size
+  // on screen instead of swelling as the camera drops toward the water.
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial(
+    {map: tex, transparent: true, depthTest: false, sizeAttenuation: false}));
+  const h = 0.036;
+  sp.scale.set(h * (cv.width / cv.height) / (innerWidth / innerHeight), h, 1);
+  sp.userData.aspect = cv.width / cv.height;
+  return sp;
+}
+for (const f of (DATA.features || [])) {
+  if (!f.at) continue;
+  const sp = makeLabel(`the ${f.name}`, f.kind);
+  toWorld(f.at[0], f.at[1], sp.position);
+  sp.position.y += 1.4;
+  labelGroup.add(sp);
 }
 
 // ---- archaeologist mode: what the surviving record supports -----------------
@@ -794,6 +879,47 @@ for (let i = 0; i < 36; i++) {
   const m = new THREE.Mesh(GEO.person, new THREE.MeshLambertMaterial({color: 0xffffff}));
   m.visible = false; scene.add(m); walkerPool.push(m);
 }
+// Every boat is somebody's boat: a hull carrying families or gifts across a
+// shared water. Water was contact infrastructure in the sim before it was
+// scenery here, so a crossing must read as a crossing.
+const boatPool = [];
+for (let i = 0; i < 10; i++) {
+  const m = new THREE.Mesh(GEO.boat, new THREE.MeshLambertMaterial({color: 0xffffff}));
+  m.rotation.x = Math.PI / 2;
+  m.visible = false; scene.add(m); boatPool.push(m);
+}
+// Landings: where a people's own ground meets its water. The record says a
+// people is waterside (its anchor is chosen shoreward, and its home feature is
+// named); the jetty is elaboration on top of that fact, deterministic and
+// evidence-free — it decorates a shore the record already asserts.
+const jettyGroup = new THREE.Group();
+scene.add(jettyGroup);
+let jettyVer = -2;
+function updateLandings(tick) {
+  if (jettyVer === appliedTo) return;
+  jettyVer = appliedTo;
+  jettyGroup.clear();
+  const own = ownerAt(tick), sh = shoresAt(tick);
+  for (const cid of Object.keys(sh)) {
+    const site = sitesOf(+cid, tick);
+    if (!site) continue;
+    const [ax, ay] = site.anchor;
+    // nearest water cell to the anchor, then a jetty reaching into it
+    let bx = null, by = null, best = 9e9;
+    for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
+      if (!DATA.water[x][y]) continue;
+      const d = (x - ax) ** 2 + (y - ay) ** 2;
+      if (d < best) { best = d; bx = x; by = y; }
+    }
+    if (bx === null || best > 9) continue;   // not truly waterside
+    const m = new THREE.Mesh(GEO.jetty, MAT.wood);
+    const mx = ax + (bx - ax) * 0.55, my = ay + (by - ay) * 0.55;
+    toWorld(mx, my, m.position);
+    m.position.y = 0.02;
+    m.rotation.y = Math.atan2(by - ay, bx - ax);
+    jettyGroup.add(m);
+  }
+}
 const firePool = [];
 for (let i = 0; i < 4; i++) {
   const g = new THREE.Group();
@@ -808,13 +934,26 @@ const va = new THREE.Vector3(), vb = new THREE.Vector3();
 let beatFire = null;   // [a, b] culture pair while an encounter card is up
 function updateMotion(t, now) {
   const tick = Math.floor(t);
-  let wi = 0, fi = 0;
+  updateLandings(tick);
+  let wi = 0, fi = 0, bi = 0;
   for (const f of DATA.flows) {
     if (f.tick > tick) break;
     if (f.tick + WALK <= t || wi >= walkerPool.length) continue;
     const A = anchorOf(f.from, tick), B = anchorOf(f.to, tick);
     if (!A || !B) continue;
     const u = (t - f.tick) / WALK;
+    if (waterLinked(f.from, f.to, tick)) {
+      if (bi < boatPool.length) {           // they go by water
+        const m = boatPool[bi++];
+        const uu = Math.max(0, Math.min(1, u));
+        const x = A[0] + (B[0] - A[0]) * uu, y = A[1] + (B[1] - A[1]) * uu;
+        m.position.set(x - G / 2, 0.03 + Math.sin(t * 3 + f.from) * 0.012, y - G / 2);
+        m.rotation.z = -Math.atan2(B[1] - A[1], B[0] - A[0]);
+        m.material.color.copy(colorOf(f.from, 0.6));
+        m.visible = true;
+      }
+      continue;
+    }
     for (let j = 0; j < Math.min(f.n, 3) && wi < walkerPool.length; j++) {
       const m = walkerPool[wi++];
       const uu = Math.max(0, Math.min(1, u - j * 0.05));
@@ -841,6 +980,7 @@ function updateMotion(t, now) {
     g.visible = true;
   }
   for (; wi < walkerPool.length; wi++) walkerPool[wi].visible = false;
+  for (; bi < boatPool.length; bi++) boatPool[bi].visible = false;
   for (; fi < firePool.length; fi++) firePool[fi].visible = false;
 }
 
@@ -1255,6 +1395,9 @@ document.getElementById("subtitle").textContent =
 function resize() {
   const w = stage.clientWidth, h = stage.clientHeight;
   renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
+  const lh = 0.036;
+  for (const sp of labelGroup.children)
+    sp.scale.set(lh * sp.userData.aspect / (w / h), lh, 1);
 }
 addEventListener("resize", resize, sig); resize();
 
@@ -1308,6 +1451,9 @@ window.__dawn = {
     return m && m.visible ? {x: +m.position.x.toFixed(4), z: +m.position.z.toFixed(4)} : null;
   },
   counts: () => ({scars: scarMeshes.length, settlements: groups.size,
+                  labels: labelGroup.children.length,
+                  jetties: jettyGroup.children.length,
+                  boats: boatPool.filter(m => m.visible).length,
                   walkers: walkerPool.filter(m => m.visible).length,
                   fires: firePool.filter(g => g.visible).length,
                   people: peopleGroups.size}),
