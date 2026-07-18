@@ -20,8 +20,17 @@ The shot grammar frames each beat kind (ratchet overhead, liberation low
 and close, schism wide; long moves cut instead of touring; the crown pulses
 at fusion), and a dropped `bundle.zip` re-boots the viewer into any world —
 bundles are stored, not deflated, so the parser needs no vendored inflate.
-Still to come: interpolated camera paths between beats, sound, and the
-archaeologist mode of the almanac contract.*
+**Archaeologist mode** (`dig`, or `a`, or `#dig`) renders only what the
+surviving record supports: peoples are known through their surviving
+chronicle entries, unattested ones collapse to anonymous grey mounds with
+their territory tint stripped, heraldry and regalia drop away as textual
+inference while built form stays as material trace, and beat cards may
+quote only surviving entries — showing the gap where there is none. On
+seed 3 this exposes the argument directly: Thaillaukak wrote 663 entries
+and none reach us, Kwirthesyus 1 of 433, while Yuslos keeps 234 of 474;
+oral entries survive at 3%, written at 76%. Whose past we can see is a
+fact about media, not about who mattered.
+Still to come: interpolated camera paths between beats, sound.*
 
 ## 0. The architecture in one sentence
 

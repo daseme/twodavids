@@ -55,9 +55,9 @@ def build_viewer_data(run_dir: Path) -> dict:
     # will not survive existed at the moment it was made; the film shows it
     # fading. Redaction and survival are facts of the record, not inventions.
     data["margins"] = [
-        {"tick": c["tick"], "author": c["author_name"], "medium": c["medium"],
-         "text": c["text"], "surviving": c["surviving"],
-         "redacted": c.get("redacted", False)}
+        {"tick": c["tick"], "cid": c["author"], "author": c["author_name"],
+         "medium": c["medium"], "text": c["text"], "surviving": c["surviving"],
+         "redacted": c.get("redacted", False), "type": c["event_type"]}
         for c in (json.loads(l) for l in (run_dir / "chronicle.jsonl").open())
     ]
     scars_path = run_dir / "scars.jsonl"

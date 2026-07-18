@@ -52,7 +52,7 @@ where the full treatment in VIEWER.md §§2–4 is still to come. -->
     text-align: right; font-variant-numeric: tabular-nums; }
   #help { position: absolute; left: 14px; bottom: 14px; font-size: 10.5px;
     color: #a2916f; text-shadow: 0 1px 2px #000; max-width: 195px; }
-  #legend { left: 14px; top: 84px; max-width: 190px; padding: 9px 13px;
+  #legend { left: 14px; top: 84px; width: 232px; padding: 9px 13px;
     font-size: 12px; max-height: 50vh; overflow-y: auto; }
   #legend .p { display: flex; gap: 7px; align-items: baseline; cursor: pointer;
     padding: 1px 0; }
@@ -71,6 +71,18 @@ where the full treatment in VIEWER.md §§2–4 is still to come. -->
     -webkit-mask-image: linear-gradient(115deg, #000 55%, transparent 88%);
     mask-image: linear-gradient(115deg, #000 55%, transparent 88%); }
   .marg.redacted .txt { text-decoration: line-through 2px rgba(46,36,23,0.55); }
+  #legend .att { margin-left: auto; font-size: 9.5px; color: var(--ink-2);
+    font-variant-numeric: tabular-nums; padding-left: 6px; text-align: right;
+    white-space: nowrap; }
+  #legend .p.unattested { color: #857a66; font-style: italic; }
+  #bar button.on { background: var(--accent); color: var(--parchment);
+    border-color: var(--accent); }
+  #modenote { position: absolute; left: 50%; transform: translateX(-50%);
+    bottom: 66px; max-width: 620px; text-align: center; font-size: 11px;
+    line-height: 1.5; color: #e4d5b2; font-style: italic; display: none;
+    background: rgba(25,21,16,0.82); border: 1px solid rgba(201,183,142,0.25);
+    border-radius: 3px; padding: 6px 14px; backdrop-filter: blur(2px); }
+  #modenote.on { display: block; }
 </style>
 
 <div id="stage"></div>
@@ -91,11 +103,13 @@ where the full treatment in VIEWER.md §§2–4 is still to come. -->
 <div id="margins"></div>
 <div class="panel" id="bar">
   <button id="play">play</button>
+  <button id="dig" title="Render only what the surviving record supports">dig</button>
   <input id="scrub" type="range" min="0" value="0" step="1">
   <div id="speed">6 t/s</div>
 </div>
+<div id="modenote"></div>
 <div id="help">drag orbit · wheel zoom · click a name to visit · space
-  play/pause · [ ] speed — the viewer watches; the only causal verb is argue</div>
+  play/pause · a dig mode — the viewer watches; the only causal verb is argue</div>
 
 <script id="three-core-src" type="text/plain">__THREE_CORE_JS__</script>
 <script id="three-src" type="text/plain">__THREE_MODULE_JS__</script>
@@ -239,6 +253,7 @@ function paintGround(tick) {
           if (nx < 0 || ny < 0 || nx >= G || ny >= G || DATA.water[nx][ny]) continue;
           n++; if (own[nx][ny] === me) same++;
         }
+        if (archaeo && attestation(me, sum.tick) === 0) { col.setXYZ(i, tintTmp.r, tintTmp.g, tintTmp.b); continue; }
         const closed = ((sum.c[me] || {}).mean || [])[3] || 0;   // closed/open axis
         const edge = n ? same / n : 1;
         const sharp = 0.35 + 0.45 * Math.max(0, closed);  // closed ⇒ crisp frontier
@@ -312,6 +327,7 @@ const GEO = {
   axis: new THREE.BoxGeometry(0.14, 0.012, 1.6),
   crown: new THREE.TorusGeometry(0.09, 0.025, 6, 10),
   person: new THREE.CapsuleGeometry(0.018, 0.05, 2, 4),
+  mound: new THREE.SphereGeometry(0.17, 6, 4, 0, 6.3, 0, 1.2),
 };
 const MAT = {
   wood: new THREE.MeshLambertMaterial({color: 0x4a3b28}),
@@ -321,6 +337,8 @@ const MAT = {
   gold: new THREE.MeshLambertMaterial({color: 0xc9a227, emissive: 0x584406}),
   ember: new THREE.MeshLambertMaterial({color: 0x8c4a1d, emissive: 0x7a3208}),
   pale: new THREE.MeshLambertMaterial({color: 0xcabf9f}),
+  // Unattested: no identity colour — we do not know whose this was.
+  unknown: new THREE.MeshLambertMaterial({color: 0x6b6459}),
 };
 const groups = new Map();   // cid -> {group, key}
 const groundY = (x, y) => heightAt(Math.round(x), Math.round(y));
@@ -409,7 +427,70 @@ function layoutOf(cid, tick, sum) {
     spots.push({x: ax, y: ay - 0.4, kind: "banner", s: 1});
     if ((mean[1] || 0) > 0.45) spots.push({x: ax + 0.5, y: ay - 0.4, kind: "banner", s: 0.8});
   }
-  return {spots, key: `${sum.tick}|${season}|${appliedTo}`};
+  // Archaeologist mode strips what the surviving record cannot carry. The
+  // split is the honest one: built form leaves traces a spade would find
+  // (post holes, hearths, footings, granary pits), while heraldry, regalia
+  // and the processional reading of an axis are known only from text. An
+  // unattested people is a scatter of mounds — someone lived here; who they
+  // were and how they ranked each other is not ours to draw.
+  const conf = confidence(cid, sum.tick);
+  if (conf === 0) {
+    const mounds = [];
+    for (let i = 0; i < Math.min(5, spots.length); i++)
+      mounds.push({x: spots[i].x, y: spots[i].y, kind: "mound", s: 1});
+    return {spots: mounds, conf, key: `A0|${sum.tick}|${season}|${appliedTo}`};
+  }
+  const TEXTUAL = new Set(["banner", "crownUp", "axis", "trophy"]);
+  const kept = conf === 1 ? spots.filter(s => !TEXTUAL.has(s.kind)) : spots;
+  return {spots: kept, conf, key: `${archaeo ? "A" + conf : "L"}|${sum.tick}|${season}|${appliedTo}`};
+}
+
+// ---- archaeologist mode: what the surviving record supports -----------------
+// The almanac's contract run in reverse (VIEWER.md §0). Normal mode renders
+// the world as it WAS — the sim's ground truth, decorated by the elaboration
+// rule. Archaeologist mode renders only what a reader at the end of the
+// history could actually justify: a people is known through its surviving
+// chronicle entries, and social form (regalia, banners, plans, authority) is
+// an inference that unattested peoples cannot support. Material traces —
+// terrain, water, and the scars — survive without text, which is precisely
+// the point: the ratchet mark outlasts the argument about it.
+//
+// The asymmetry this exposes is the argument: written entries survive far
+// better than oral ones, so literate settled peoples dominate the record
+// while great talkers can vanish. A people may have lived loudly and left
+// us almost nothing.
+let archaeo = false;
+const evidence = new Map();   // cid -> [{tick, n}] cumulative surviving count
+{
+  const running = new Map();
+  for (const m of DATA.margins) {
+    if (!m.surviving || m.cid == null) continue;
+    const cid = String(m.cid);
+    const n = (running.get(cid) || 0) + 1;
+    running.set(cid, n);
+    if (!evidence.has(cid)) evidence.set(cid, []);
+    evidence.get(cid).push({tick: m.tick, n});
+  }
+}
+const wroteTotal = new Map();
+for (const m of DATA.margins) {
+  const cid = String(m.cid);
+  if (cid !== "null") wroteTotal.set(cid, (wroteTotal.get(cid) || 0) + 1);
+}
+function attestation(cid, tick) {
+  const rows = evidence.get(String(cid));
+  if (!rows) return 0;
+  let lo = -1, hi = rows.length - 1;
+  while (lo < hi) { const m = (lo + hi + 1) >> 1;
+    if (rows[m].tick <= tick) lo = m; else hi = m - 1; }
+  return lo < 0 ? 0 : rows[lo].n;
+}
+// How much of a settlement's form the record can carry: none, material
+// traces only, or the full social reading.
+function confidence(cid, tick) {
+  if (!archaeo) return 2;
+  const n = attestation(cid, tick);
+  return n === 0 ? 0 : n < 12 ? 1 : 2;
 }
 
 // ---- heraldry, schismogenetically (§3.5) ------------------------------------
@@ -486,19 +567,22 @@ function updateCrownScars(tick) {
 const v3 = new THREE.Vector3();
 function buildGroup(cid, layout) {
   const g = new THREE.Group();
-  const mat = new THREE.MeshLambertMaterial({color: colorOf(cid, 0.42)});
-  const dark = new THREE.MeshLambertMaterial({color: colorOf(cid, 0.28)});
+  const known = layout.conf === undefined || layout.conf === 2;
+  const mat = new THREE.MeshLambertMaterial(
+    {color: layout.conf === 0 ? 0x6b6459 : colorOf(cid, known ? 0.42 : 0.36)});
+  const dark = new THREE.MeshLambertMaterial(
+    {color: layout.conf === 0 ? 0x5a544a : colorOf(cid, known ? 0.28 : 0.24)});
   const matFor = {tent: mat, hut: mat, stone: MAT.stoneM, lodge: dark, keep: MAT.stoneM,
                   post: MAT.wood, tower: MAT.wood, granary: MAT.straw, hearth: MAT.ember,
                   shrine: MAT.white, trophy: MAT.wood, plaza: MAT.pale, axis: MAT.pale,
-                  crownUp: MAT.gold, person: dark};
+                  crownUp: MAT.gold, person: dark, mound: MAT.unknown};
   for (const s of layout.spots) {
     const kind = s.kind === "crownUp" ? "crown" : s.kind;
     const m = new THREE.Mesh(GEO[kind], s.kind === "banner" ? bannerMat(cid) : matFor[s.kind]);
     m.scale.setScalar(s.s);
     toWorld(s.x, s.y, m.position);
     const lift = {banner: 0.55, crownUp: 1.05, tower: 0.28, shrine: 0.2,
-                  trophy: 0.21, post: 0.17, granary: 0.12, keep: 0.45};
+                  trophy: 0.21, post: 0.17, granary: 0.12, keep: 0.45, mound: 0};
     m.position.y += lift[s.kind] !== undefined ? lift[s.kind] : 0.1 * s.s;
     if (s.kind === "banner") m.rotation.y = Math.PI / 4;
     if (s.kind === "crownUp") m.rotation.x = Math.PI / 2;
@@ -744,6 +828,12 @@ for (const c of DATA.chronicle) {
   const k = `${c.tick}|${c.type}`;
   if (!chronMap.has(k)) chronMap.set(k, c);
 }
+const survivingChron = new Map();
+for (const m of DATA.margins) {
+  if (!m.surviving) continue;
+  const k = `${m.tick}|${m.type}`;
+  if (!survivingChron.has(k)) survivingChron.set(k, m);
+}
 
 const beatEl = document.getElementById("beat");
 let beatPtr = 0, beatCool = 0, beatShownAt = 0;
@@ -778,11 +868,19 @@ function directorStep(tick, now) {
       }
     } else if (b.culture != null) flyTo(b.culture, tick, b.kind);
     const chron = chronMap.get(`${b.tick}|${b.kind}`);
-    const quote = (chron && chron.text) || b.quote || GLOSSES[b.kind]
-                  || "(the record is silent)";
-    const who = b.speaker
-      ? `${b.speaker.name} of the ${b.speaker.culture} — ${(b.speaker.traits || []).join(", ")}`
-      : chron ? `${chron.author}, ${chron.medium}` : "";
+    // Archaeologist mode: a deliberation is not evidence — what was said
+    // reaches us only if some surviving chronicle recorded it. The film may
+    // quote only the record, and must show the gap where there is none.
+    const surv = survivingChron.get(`${b.tick}|${b.kind}`);
+    const quote = archaeo
+      ? (surv ? surv.text : "The record does not preserve what was said here.")
+      : ((chron && chron.text) || b.quote || GLOSSES[b.kind]
+         || "(the record is silent)");
+    const who = archaeo
+      ? (surv ? `${surv.author}, ${surv.medium} — survives` : "no surviving account")
+      : (b.speaker
+         ? `${b.speaker.name} of the ${b.speaker.culture} — ${(b.speaker.traits || []).join(", ")}`
+         : chron ? `${chron.author}, ${chron.medium}` : "");
     document.getElementById("beat-kind").textContent =
       `${b.kind.replace("_", " ")} · year ${Math.floor(b.tick / 4)}` +
       (b.stance ? ` · settled toward ${b.stance}` : "") +
@@ -825,6 +923,16 @@ function drawLegend(tick) {
     sw.className = "sw";
     sw.style.background = `hsl(${hueOf(+cid)}, 50%, 45%)`;
     row.append(sw, document.createTextNode(meta.name));
+    if (archaeo) {
+      const n = attestation(cid, tick), wrote = wroteTotal.get(cid) || 0;
+      const tag = document.createElement("span");
+      tag.className = "att";
+      tag.textContent = n === 0 ? (wrote ? `unattested (${wrote} lost)` : "unattested")
+                                : `${n} of ${wrote}`;
+      if (n === 0) row.classList.add("unattested");
+      row.appendChild(tag);
+      sw.style.background = n === 0 ? "#6b6459" : `hsl(${hueOf(+cid)}, 50%, 45%)`;
+    }
     if (live) row.addEventListener("click", () => flyTo(+cid, curTick));
     legendEl.appendChild(row);
   }
@@ -845,9 +953,35 @@ function setTick(t, hard) {
   if (Math.floor(tick / 20) !== lastLegend) { drawLegend(tick); lastLegend = Math.floor(tick / 20); }
 }
 playBtn.addEventListener("click", () => { playing = !playing; playBtn.textContent = playing ? "pause" : "play"; }, sig);
+
+// ---- archaeologist mode toggle ----------------------------------------------
+const digBtn = document.getElementById("dig"), modeNote = document.getElementById("modenote");
+function setArchaeo(on) {
+  archaeo = on;
+  digBtn.classList.toggle("on", on);
+  modeNote.classList.toggle("on", on);
+  if (on) {
+    const surv = DATA.margins.filter(m => m.surviving).length;
+    const oral = DATA.margins.filter(m => m.medium === "oral");
+    const oralSurv = oral.filter(m => m.surviving).length;
+    modeNote.textContent =
+      `As the surviving record supports it: ${surv} of ${DATA.margins.length} ` +
+      `entries reach us (${oral.length ? Math.round(100 * oralSurv / oral.length) : 0}% of oral, ` +
+      `${Math.round(100 * (surv - oralSurv) / Math.max(1, DATA.margins.length - oral.length))}% of written). ` +
+      `Mounds are peoples no surviving text attests; heraldry and regalia are ` +
+      `dropped as textual inference, built form is kept as material trace.`;
+  }
+  // Force a rebuild of everything the mode changes.
+  for (const [, g] of groups) scene.remove(g.group);
+  groups.clear();
+  lastPaint = -1; lastLegend = -1; marginsKey = -1;
+  setTick(curTick, true);
+}
+digBtn.addEventListener("click", () => setArchaeo(!archaeo), sig);
 scrubEl.addEventListener("input", () => { playing = false; playBtn.textContent = "play"; setTick(+scrubEl.value, true); }, sig);
 addEventListener("keydown", e => {
   if (e.key === " ") { e.preventDefault(); playBtn.click(); }
+  if (e.key === "a" || e.key === "A") setArchaeo(!archaeo);
   if (e.key === "[") tps = Math.max(1, tps / 2);
   if (e.key === "]") tps = Math.min(64, tps * 2);
   document.getElementById("speed").textContent = tps + " t/s";
@@ -870,6 +1004,7 @@ let prev = performance.now();
 // #t=1234&play seeks (and optionally starts) — a shareable moment.
 const hash = new URLSearchParams(location.hash.slice(1));
 setTick(+(hash.get("t") || 0), true);
+if (hash.has("dig")) setArchaeo(true);
 if (hash.has("play")) playBtn.click();
 toWorld(G / 2, G / 2, cam.fTarget); cam.focus.copy(cam.fTarget);
 function frame(now) {
@@ -980,9 +1115,13 @@ function dataFromBundle(files) {
     chronicle: chron.filter(c => evTypes.includes(c.event_type))
       .map(c => ({tick: c.tick, type: c.event_type, author: c.author_name,
                   medium: c.medium, text: c.text})),
-    margins: chron.map(c => ({tick: c.tick, author: c.author_name, medium: c.medium,
-                              text: c.text, surviving: c.surviving,
-                              redacted: !!c.redacted})),
+    // cid and type carry archaeologist mode: attestation is per-author, and
+    // beat citation needs the event key. Dropping them silently renders
+    // every people unattested, which would be a lie about the record.
+    margins: chron.map(c => ({tick: c.tick, cid: c.author, author: c.author_name,
+                              medium: c.medium, text: c.text,
+                              surviving: c.surviving, redacted: !!c.redacted,
+                              type: c.event_type})),
   };
 }
 addEventListener("dragover", e => e.preventDefault());

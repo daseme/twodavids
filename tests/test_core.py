@@ -228,6 +228,10 @@ def test_viewer_builds_from_run_dir(tmp_path):
     assert "Three.js Authors" in html
     assert "<script src=" not in html and "import(\"http" not in html
     assert '"deliberations"' in html
+    # Archaeologist mode reads attestation per author and cites by event key;
+    # without cid and type every people renders unattested — a lie about the
+    # record, and a silent one.
+    assert '"cid"' in html and '"surviving"' in html
 
 
 def test_narrate_with_mock_provider(tmp_path):
