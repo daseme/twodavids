@@ -1,0 +1,22 @@
+[project]
+name = "dawn"
+version = "0.1.0"
+description = "The Dawn of Everything as a procedurally generated world: schismogenesis, seasonal repertoires, and the three freedoms as simulation mechanics."
+requires-python = ">=3.12"
+dependencies = ["numpy>=2.0"]
+
+[project.scripts]
+dawn = "dawn.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["dawn*"]
+
+[tool.setuptools.package-data]
+dawn = ["viz_template.html", "watch_template.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,644 @@
+<title>dawn — watch</title>
+<style>
+  :root {
+    --bg: #F5F6F4; --panel: #FCFDFB; --ink: #20261F; --ink-2: #5C665C;
+    --ink-3: #8B958B; --line: #DDE2DA; --accent: #2E7D6E; --accent-ink: #FFFFFF;
+    --plate: #EDEFE9; --plate-line: #D3D8CF;
+    --ev-ratchet: #B03A28; --ev-fusion: #6C41A6; --ev-liberation: #1F7A4D;
+    --ev-unfusion: #1E6FB2; --ev-schism: #B84A6E; --ev-extinction: #6B7368;
+    --tip-bg: #20261F; --tip-ink: #F5F6F4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #191D1B; --panel: #1F2421; --ink: #E8ECE6; --ink-2: #9AA69C;
+      --ink-3: #6D786F; --line: #2C332E; --accent: #55B3A2; --accent-ink: #10201B;
+      --plate: #222723; --plate-line: #2C332E;
+      --ev-ratchet: #D65F4B; --ev-fusion: #9678D0; --ev-liberation: #43A06E;
+      --ev-unfusion: #4E95CE; --ev-schism: #D4708F; --ev-extinction: #8B958B;
+      --tip-bg: #E8ECE6; --tip-ink: #191D1B;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #F5F6F4; --panel: #FCFDFB; --ink: #20261F; --ink-2: #5C665C;
+    --ink-3: #8B958B; --line: #DDE2DA; --accent: #2E7D6E; --accent-ink: #FFFFFF;
+    --plate: #EDEFE9; --plate-line: #D3D8CF;
+    --ev-ratchet: #B03A28; --ev-fusion: #6C41A6; --ev-liberation: #1F7A4D;
+    --ev-unfusion: #1E6FB2; --ev-schism: #B84A6E; --ev-extinction: #6B7368;
+    --tip-bg: #20261F; --tip-ink: #F5F6F4;
+  }
+  :root[data-theme="dark"] {
+    --bg: #191D1B; --panel: #1F2421; --ink: #E8ECE6; --ink-2: #9AA69C;
+    --ink-3: #6D786F; --line: #2C332E; --accent: #55B3A2; --accent-ink: #10201B;
+    --plate: #222723; --plate-line: #2C332E;
+    --ev-ratchet: #D65F4B; --ev-fusion: #9678D0; --ev-liberation: #43A06E;
+    --ev-unfusion: #4E95CE; --ev-schism: #D4708F; --ev-extinction: #8B958B;
+    --tip-bg: #E8ECE6; --tip-ink: #191D1B;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 14.5px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+         -webkit-font-smoothing: antialiased; }
+  .serif { font-family: "Iowan Old Style", Palatino, "Palatino Linotype", "Book Antiqua", Georgia, serif; }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 20px 20px 40px; }
+  header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; padding: 8px 2px 14px; }
+  header .eyebrow { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+                    color: var(--accent); font-weight: 600; }
+  header h1 { font-family: "Iowan Old Style", Palatino, Georgia, serif; font-size: 22px;
+              font-weight: 500; margin: 0; }
+  header .hint { color: var(--ink-3); font-size: 12.5px; margin-left: auto; }
+
+  .controls { display: flex; align-items: center; gap: 14px; background: var(--panel);
+              border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; }
+  button.play { width: 44px; height: 44px; border-radius: 50%; border: none; cursor: pointer;
+                background: var(--accent); color: var(--accent-ink); font-size: 17px; flex: none; }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .year { font-family: "Iowan Old Style", Palatino, Georgia, serif; font-size: 26px;
+          min-width: 130px; font-variant-numeric: tabular-nums; }
+  .season { color: var(--ink-2); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; display: block; margin-top: -6px; }
+  .stats { color: var(--ink-2); font-size: 13px; min-width: 160px; }
+  .stats b { color: var(--ink); }
+  .track { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 200px; }
+  #density { width: 100%; height: 18px; display: block; cursor: pointer; }
+  input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; }
+  select { background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+           border-radius: 6px; padding: 6px 8px; font: inherit; }
+
+  .stage { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; margin-top: 18px; }
+  @media (max-width: 940px) { .stage { grid-template-columns: 1fr; } }
+
+  .map-panel { background: var(--plate); border: 1px solid var(--plate-line);
+               border-radius: 10px; padding: 12px; align-self: start; }
+  .map-frame { border-radius: 6px; overflow: hidden; box-shadow: inset 0 0 34px rgba(20,26,20,0.18); }
+  #map { width: 100%; height: auto; display: block; cursor: crosshair; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px 16px; padding: 12px 2px 0; font-size: 12px; color: var(--ink-2); }
+  .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
+
+  aside { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+  .dossier { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+             padding: 16px 16px 12px; }
+  .d-head { display: flex; align-items: center; gap: 10px; }
+  .d-head .swatch { width: 14px; height: 14px; border-radius: 50%; flex: none;
+                    box-shadow: 0 0 0 2px var(--panel), 0 0 0 3px var(--line); }
+  .d-head h3 { font-family: "Iowan Old Style", Palatino, Georgia, serif; font-size: 20px;
+               font-weight: 500; margin: 0; flex: 1; min-width: 0; }
+  .d-head .vs { color: var(--ink-3); font-size: 12px; }
+  .d-head button { border: none; background: none; color: var(--ink-3); font-size: 18px;
+                   cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+  .d-status { color: var(--ink-2); font-size: 12.5px; margin: 6px 0 0; }
+  .d-status .badge { display: inline-block; border: 1px solid var(--line); border-radius: 99px;
+                     padding: 0 8px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+                     margin-left: 6px; color: var(--ink-2); }
+  .d-status .badge.fused { color: var(--ev-fusion); border-color: var(--ev-fusion); }
+  .d-sketch { font-family: "Iowan Old Style", Palatino, Georgia, serif; font-style: italic;
+              font-size: 14px; line-height: 1.6; color: var(--ink); margin: 12px 0;
+              border-left: 2px solid var(--accent); padding-left: 12px; }
+  .d-label { font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase;
+             color: var(--ink-3); font-weight: 600; margin: 10px 0 4px; }
+  #d-values, #d-dom { width: 100%; height: auto; display: block; }
+  .d-compare { font-size: 12.5px; color: var(--ink-2); border-top: 1px solid var(--line);
+               margin-top: 10px; padding-top: 8px; }
+  .d-compare b { color: var(--ink); }
+  .d-empty { background: var(--panel); border: 1px dashed var(--line); border-radius: 10px;
+             padding: 14px 16px; color: var(--ink-3); font-size: 13px; }
+
+  .ticker { display: flex; flex-direction: column; max-height: 560px; overflow-y: auto;
+            background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .ticker h2 { font-family: "Iowan Old Style", Palatino, Georgia, serif; font-size: 15px;
+               font-weight: 600; margin: 0 0 8px; color: var(--ink-2); }
+  .entry { border-left: 2px solid var(--line); padding: 7px 0 7px 12px; margin-bottom: 2px; cursor: pointer; }
+  .entry:hover { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+  .entry:first-of-type { border-left-color: var(--accent); }
+  .entry .when { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; }
+  .entry p { font-family: "Iowan Old Style", Palatino, Georgia, serif; font-size: 13.5px;
+             line-height: 1.5; margin: 3px 0 0; color: var(--ink); }
+  .entry .src { color: var(--ink-3); font-size: 11.5px; margin-top: 3px; }
+  .entry.plain p { font-family: inherit; font-size: 12.5px; color: var(--ink-2); font-style: italic; }
+
+  #tip { position: fixed; pointer-events: none; background: var(--tip-bg); color: var(--tip-ink);
+         font-size: 12.5px; padding: 6px 9px; border-radius: 5px; opacity: 0; z-index: 10;
+         font-variant-numeric: tabular-nums; }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">dawn · watch mode</span>
+    <h1 id="title"></h1>
+    <span class="hint">space plays · ← → step a year · click a people for their dossier · click a second to compare</span>
+  </header>
+
+  <div class="controls">
+    <button class="play" id="play" aria-label="Play or pause">▶</button>
+    <div><span class="year mono" id="year"></span><span class="season" id="season"></span></div>
+    <div class="stats" id="stats"></div>
+    <div class="track">
+      <canvas id="density" width="1200" height="26" aria-label="Event density; click to jump"></canvas>
+      <input type="range" id="scrub" min="0" value="0" step="1" aria-label="Timeline">
+    </div>
+    <select id="speed" aria-label="Playback speed">
+      <option value="10">slow</option>
+      <option value="25" selected>steady</option>
+      <option value="60">brisk</option>
+      <option value="140">era</option>
+    </select>
+  </div>
+
+  <div class="stage">
+    <div class="map-panel">
+      <div class="map-frame">
+        <canvas id="map" width="960" height="960" aria-label="The world map, animating through time"></canvas>
+      </div>
+      <div class="legend">
+        <span><i style="background:var(--ev-ratchet)"></i>ratchet / hardening</span>
+        <span><i style="background:var(--ev-fusion)"></i>fusion</span>
+        <span><i style="background:var(--ev-unfusion)"></i>unfusion</span>
+        <span><i style="background:var(--ev-liberation)"></i>liberation</span>
+        <span><i style="background:var(--ev-schism)"></i>schism</span>
+        <span><i style="background:var(--ev-extinction)"></i>abandonment</span>
+        <span>◌ fused polity · dots = defections · arcs = feasts</span>
+      </div>
+    </div>
+    <aside>
+      <div class="d-empty" id="d-empty">No people selected. Click a territory to open its dossier —
+        the same description the oracle would be given. Click a second people to watch the two of
+        them diverge or converge in value-space as history plays.</div>
+      <div class="dossier" id="dossier" hidden>
+        <div class="d-head">
+          <span class="swatch" id="d-swatch"></span>
+          <h3 id="d-name"></h3>
+          <button id="d-close" aria-label="Close dossier">×</button>
+        </div>
+        <div class="d-status" id="d-status"></div>
+        <p class="d-sketch" id="d-sketch"></p>
+        <div class="d-label">The eight axes of value</div>
+        <canvas id="d-values" width="340" height="236"></canvas>
+        <div class="d-label">The three domination tracks</div>
+        <canvas id="d-dom" width="340" height="86"></canvas>
+        <div class="d-compare" id="d-compare" hidden></div>
+      </div>
+      <div class="ticker" id="ticker" aria-live="polite">
+        <h2>The record, as it is made — click an entry to revisit it</h2>
+      </div>
+    </aside>
+  </div>
+</div>
+<div id="tip"></div>
+
+<script>
+const DATA = __DATA__;
+const G = DATA.grid, T_END = DATA.ticks, CELL = 960 / G;
+const SEASONS = ["spring", "summer", "autumn", "winter"];
+const BIOME_TINT = [[214,205,159],[157,185,138],[181,203,150],[169,196,206],[192,188,176],[228,215,174]];
+const EV_COLOR = { ratchet: "--ev-ratchet", hardening: "--ev-ratchet", fusion: "--ev-fusion",
+                   unfusion: "--ev-unfusion", liberation: "--ev-liberation",
+                   schism: "--ev-schism", extinction: "--ev-extinction" };
+const EV_LABEL = { ratchet: "Ratchet", hardening: "Hardening", fusion: "Fusion",
+                   unfusion: "Unfusion", liberation: "Liberation", schism: "Schism",
+                   extinction: "Abandonment" };
+const hueOf = cid => (cid * 137.508) % 360;
+const cultureColor = (cid, a=1, l=50) => `hsla(${hueOf(cid)}, 50%, ${l}%, ${a})`;
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const fmt = n => n.toLocaleString("en-US");
+const nameOf = cid => DATA.cultures[cid] ? DATA.cultures[cid].name : `people ${cid}`;
+
+document.getElementById("title").textContent = `The World of Seed ${DATA.seed}, unfolding`;
+document.title = `Watching Seed ${DATA.seed} — dawn`;
+
+// ---- time state ----------------------------------------------------------------
+let t = 0, playing = false, speed = 25;
+let selA = null, selB = null;
+const scrub = document.getElementById("scrub");
+scrub.max = T_END;
+
+// ---- territory reconstruction ----------------------------------------------------
+const deltas = DATA.deltas.slice().sort((a, b) => a.tick - b.tick);
+let owner = null, appliedTo = -1, appliedCount = 0;
+function ownerAt(tick) {
+  if (owner === null || tick < appliedTo) {
+    owner = DATA.owner0.map(r => r.slice());
+    appliedTo = -1; appliedCount = 0;
+  }
+  for (const d of deltas) {
+    if (d.tick > tick) break;
+    if (d.tick <= appliedTo) continue;
+    for (const [x, y] of d.cells) owner[x][y] = d.to;
+    appliedCount++;
+  }
+  appliedTo = tick;
+  return owner;
+}
+
+// ---- summaries -------------------------------------------------------------------
+const sums = DATA.summaries;
+function summaryAt(tick) {
+  let lo = 0, hi = sums.length - 1;
+  while (lo < hi) { const m = (lo + hi + 1) >> 1; if (sums[m].tick <= tick) lo = m; else hi = m - 1; }
+  return sums[lo];
+}
+function centroids(ow) {
+  const acc = {};
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
+    const o = ow[x][y]; if (o < 0) continue;
+    (acc[o] ||= [0, 0, 0]); acc[o][0] += x; acc[o][1] += y; acc[o][2]++;
+  }
+  const out = {};
+  for (const k in acc) out[k] = [acc[k][0] / acc[k][2], acc[k][1] / acc[k][2]];
+  return out;
+}
+
+// ---- terrain layer (static): biome tint x hillshade -------------------------------
+const terrain = document.createElement("canvas");
+terrain.width = terrain.height = 960;
+(function drawTerrain() {
+  const g = terrain.getContext("2d");
+  const E = DATA.elevation;
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
+    let shade = 1;
+    if (E) {
+      const e = E[x][y] / 1000;
+      const nw = E[Math.max(0, x - 1)][Math.max(0, y - 1)] / 1000;
+      shade = 0.9 + (e - nw) * 2.2 + (e - 0.5) * 0.12; // light from the northwest
+      shade = Math.max(0.72, Math.min(1.22, shade));
+    }
+    const [r, gr, b] = BIOME_TINT[DATA.biome[x][y]];
+    g.fillStyle = `rgb(${Math.round(r * shade)},${Math.round(gr * shade)},${Math.round(b * shade)})`;
+    g.fillRect(y * CELL, x * CELL, CELL + 0.5, CELL + 0.5);
+  }
+})();
+
+// ---- ownership layer: redrawn only when territory or selection changes ------------
+const ownLayer = document.createElement("canvas");
+ownLayer.width = ownLayer.height = 960;
+let ownVersion = "";
+function drawOwnLayer(ow) {
+  const key = `${appliedCount}|${selA}|${selB}`;
+  if (key === ownVersion) return;
+  ownVersion = key;
+  const g = ownLayer.getContext("2d");
+  g.clearRect(0, 0, 960, 960);
+  const dimming = selA !== null;
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
+    const o = ow[x][y]; if (o < 0) continue;
+    const chosen = o === selA || o === selB;
+    g.fillStyle = cultureColor(o, dimming && !chosen ? 0.18 : 0.60);
+    g.fillRect(y * CELL, x * CELL, CELL + 0.5, CELL + 0.5);
+  }
+  g.strokeStyle = "rgba(28,34,28,0.5)"; g.lineWidth = 1.2;
+  g.beginPath();
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
+    const o = ow[x][y];
+    if (x + 1 < G && ow[x + 1][y] !== o) { g.moveTo(y * CELL, (x + 1) * CELL); g.lineTo((y + 1) * CELL, (x + 1) * CELL); }
+    if (y + 1 < G && ow[x][y + 1] !== o) { g.moveTo((y + 1) * CELL, x * CELL); g.lineTo((y + 1) * CELL, (x + 1) * CELL); }
+  }
+  g.stroke();
+  for (const sel of [selA, selB]) {
+    if (sel === null) continue;
+    g.strokeStyle = cultureColor(sel, 1, 32); g.lineWidth = 3;
+    g.beginPath();
+    for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
+      if (ow[x][y] !== sel) continue;
+      if (x === 0 || ow[x - 1][y] !== sel) { g.moveTo(y * CELL, x * CELL); g.lineTo((y + 1) * CELL, x * CELL); }
+      if (x === G - 1 || ow[x + 1][y] !== sel) { g.moveTo(y * CELL, (x + 1) * CELL); g.lineTo((y + 1) * CELL, (x + 1) * CELL); }
+      if (y === 0 || ow[x][y - 1] !== sel) { g.moveTo(y * CELL, x * CELL); g.lineTo(y * CELL, (x + 1) * CELL); }
+      if (y === G - 1 || ow[x][y + 1] !== sel) { g.moveTo((y + 1) * CELL, x * CELL); g.lineTo((y + 1) * CELL, (x + 1) * CELL); }
+    }
+    g.stroke();
+  }
+}
+
+// ---- events, flows, ticker ---------------------------------------------------------
+const events = DATA.events.slice().sort((a, b) => a.tick - b.tick);
+const flows = DATA.flows.slice().sort((a, b) => a.tick - b.tick);
+const feasts = DATA.feasts.slice().sort((a, b) => a.tick - b.tick);
+const chronMap = new Map();
+for (const c of DATA.chronicle) {
+  const k = `${c.tick}|${c.type}`;
+  if (!chronMap.has(k)) chronMap.set(k, c);
+}
+let evPtr = 0, flowPtr = 0, feastPtr = 0;
+function seekPtrs(tick) {
+  evPtr = events.findIndex(e => e.tick > tick); if (evPtr < 0) evPtr = events.length;
+  flowPtr = flows.findIndex(e => e.tick > tick); if (flowPtr < 0) flowPtr = flows.length;
+  feastPtr = feasts.findIndex(e => e.tick > tick); if (feastPtr < 0) feastPtr = feasts.length;
+}
+
+let pulses = [], darts = [], arcs = [];
+const now = () => performance.now();
+
+const ticker = document.getElementById("ticker");
+function tickerAdd(ev) {
+  const c = chronMap.get(`${ev.tick}|${ev.type}`);
+  const name = nameOf(ev.culture);
+  const div = document.createElement("div");
+  div.className = "entry" + (c ? "" : " plain");
+  div.dataset.tick = ev.tick;
+  const body = c ? c.text :
+    ev.type === "schism" ? `A part of the ${name} went out from them and became a people of its own.` :
+    ev.type === "extinction" ? `The fires of the ${name} are cold.` :
+    ev.type === "liberation" ? `Among the ${name}, a door long closed was opened.` :
+    `A ${EV_LABEL[ev.type].toLowerCase()} among the ${name}.`;
+  div.innerHTML = `<span class="when" style="color: var(${EV_COLOR[ev.type] || "--ink-2"})">${EV_LABEL[ev.type]} · year ${Math.round(ev.tick / 4)}</span>
+    <p>${body}</p>` +
+    (c ? `<div class="src">— as ${c.medium === "written" ? "written" : "sung"} by the ${c.author}</div>` : "");
+  ticker.insertBefore(div, ticker.children[1] || null);
+  while (ticker.children.length > 40) ticker.removeChild(ticker.lastChild);
+}
+function tickerReset(tick) {
+  while (ticker.children.length > 1) ticker.removeChild(ticker.lastChild);
+  for (const e of events.filter(e => e.tick <= tick).slice(-12)) tickerAdd(e);
+}
+ticker.addEventListener("click", e => {
+  const entry = e.target.closest(".entry");
+  if (entry) seekTo(+entry.dataset.tick);
+});
+
+function fire(tick, cents) {
+  while (evPtr < events.length && events[evPtr].tick <= tick) {
+    const ev = events[evPtr++];
+    const where = cents[ev.type === "schism" && ev.new != null ? ev.new : ev.culture];
+    if (where) pulses.push({ x: where[1], y: where[0], color: css(EV_COLOR[ev.type] || "--ink-2"),
+                             born: now(), big: ev.type === "fusion" || ev.type === "extinction" });
+    tickerAdd(ev);
+  }
+  while (flowPtr < flows.length && flows[flowPtr].tick <= tick) {
+    const f = flows[flowPtr++];
+    const a = cents[f.from], b = cents[f.to];
+    if (a && b) darts.push({ ax: a[1], ay: a[0], bx: b[1], by: b[0], born: now(),
+                             dur: 900, n: Math.min(f.n, 4) });
+  }
+  while (feastPtr < feasts.length && feasts[feastPtr].tick <= tick) {
+    const f = feasts[feastPtr++];
+    const a = cents[f.a], b = cents[f.b];
+    if (a && b) arcs.push({ ax: a[1], ay: a[0], bx: b[1], by: b[0], born: now() });
+  }
+}
+
+// ---- main compositor ------------------------------------------------------------------
+const canvas = document.getElementById("map");
+const ctx = canvas.getContext("2d");
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function draw() {
+  const ow = ownerAt(Math.floor(t));
+  const sum = summaryAt(t), cents = centroids(ow);
+  drawOwnLayer(ow);
+  ctx.clearRect(0, 0, 960, 960);
+  ctx.drawImage(terrain, 0, 0);
+  ctx.drawImage(ownLayer, 0, 0);
+
+  for (const a of arcs) {
+    const age = (now() - a.born) / 2500; if (age > 1) continue;
+    ctx.strokeStyle = css("--accent"); ctx.globalAlpha = 0.85 * (1 - age); ctx.lineWidth = 3;
+    const mx = (a.ax + a.bx) / 2, my = (a.ay + a.by) / 2 - 7;
+    ctx.beginPath(); ctx.moveTo(a.ax * CELL, a.ay * CELL);
+    ctx.quadraticCurveTo(mx * CELL, my * CELL, a.bx * CELL, a.by * CELL); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  for (const d of darts) {
+    const age = (now() - d.born) / d.dur; if (age > 1) continue;
+    for (let i = 0; i < d.n; i++) {
+      const p = Math.min(1, age * 1.15 - i * 0.06); if (p < 0) continue;
+      ctx.fillStyle = "rgba(28,34,28,0.8)";
+      ctx.beginPath();
+      ctx.arc((d.ax + (d.bx - d.ax) * p) * CELL, (d.ay + (d.by - d.ay) * p) * CELL, 3.4, 0, 7);
+      ctx.fill();
+    }
+  }
+  for (const p of pulses) {
+    const age = (now() - p.born) / (p.big ? 2000 : 1300); if (age > 1) continue;
+    const ease = 1 - Math.pow(1 - age, 2);
+    ctx.strokeStyle = p.color; ctx.globalAlpha = (1 - age); ctx.lineWidth = p.big ? 4 : 2.5;
+    ctx.beginPath(); ctx.arc(p.x * CELL, p.y * CELL, (6 + ease * (p.big ? 62 : 38)), 0, 7); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  pulses = pulses.filter(p => (now() - p.born) < 2100);
+  darts = darts.filter(d => (now() - d.born) < d.dur + 100);
+  arcs = arcs.filter(a => (now() - a.born) < 2600);
+
+  ctx.textAlign = "center";
+  for (const cid in cents) {
+    const info = sum.c[cid]; if (!info) continue;
+    const [cx, cy] = [cents[cid][1] * CELL, cents[cid][0] * CELL];
+    if (info.fused) {
+      ctx.strokeStyle = "rgba(28,34,28,0.9)"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(cx, cy - 6, 11, 0, 7); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, cy - 6, 16, 0, 7); ctx.stroke();
+    }
+    const chosen = +cid === selA || +cid === selB;
+    const sz = Math.max(13, Math.min(20, 10 + Math.sqrt(info.pop) / 14));
+    ctx.font = `${chosen ? 700 : 600} ${sz}px system-ui`;
+    ctx.globalAlpha = selA !== null && !chosen ? 0.5 : 1;
+    ctx.strokeStyle = "rgba(244,245,240,0.9)"; ctx.lineWidth = 4;
+    ctx.strokeText(nameOf(cid), cx, cy + 18);
+    ctx.fillStyle = "#262C26";
+    ctx.fillText(nameOf(cid), cx, cy + 18);
+    ctx.globalAlpha = 1;
+  }
+
+  const yr = Math.floor(t / 4);
+  document.getElementById("year").textContent = `Year ${yr}`;
+  document.getElementById("season").textContent = SEASONS[Math.floor(t) % 4];
+  const pop = Object.values(sum.c).reduce((s, c) => s + c.pop, 0);
+  document.getElementById("stats").innerHTML =
+    `<b>${Object.keys(sum.c).length}</b> peoples · <b>${fmt(pop)}</b> souls`;
+  scrub.value = Math.floor(t);
+  drawDossier(sum);
+}
+
+// ---- the dossier: reader mode as an instrument -------------------------------------------
+const AXES = DATA.axes; // [[pos, neg] x 8]
+let dossierKey = "";
+function meanAt(sum, cid) { return (sum.c[cid] || {}).mean || null; }
+function drawDossier(sum) {
+  const panel = document.getElementById("dossier");
+  const empty = document.getElementById("d-empty");
+  if (selA === null) { panel.hidden = true; empty.hidden = false; return; }
+  panel.hidden = false; empty.hidden = true;
+  const a = sum.c[selA];
+  const era = String(Math.floor(sum.tick / DATA.era_ticks));
+
+  const key = `${Math.floor(t / 4)}|${selA}|${selB}`;
+  if (key !== dossierKey) {
+    dossierKey = key;
+    document.getElementById("d-swatch").style.background = cultureColor(selA);
+    document.getElementById("d-name").innerHTML = nameOf(selA) +
+      (selB !== null ? ` <span class="vs">vs ${nameOf(selB)}</span>` : "");
+    if (!a) {
+      document.getElementById("d-status").textContent = "Not among the living at this point in the record.";
+      document.getElementById("d-sketch").textContent = "";
+    } else {
+      const gloss = DATA.glosses[a.cfg] || "a way of living the record does not gloss";
+      document.getElementById("d-status").innerHTML =
+        `<b>${fmt(a.pop)}</b> souls · their year: <i>${gloss}</i>` +
+        (a.fused ? `<span class="badge fused">fused polity</span>` : "") +
+        (a.switching ? `<span class="badge">turns with the seasons</span>` : "");
+      const sk = (DATA.sketches[era] || {})[selA];
+      document.getElementById("d-sketch").textContent = sk ? `“${sk}”` : "";
+    }
+    const cmp = document.getElementById("d-compare");
+    if (selB !== null) {
+      const mA = meanAt(sum, selA), mB = meanAt(sum, selB);
+      const past = summaryAt(Math.max(0, sum.tick - 200));
+      const pA = meanAt(past, selA), pB = meanAt(past, selB);
+      if (mA && mB) {
+        const d1 = mA.reduce((s, v, k) => s + Math.abs(v - mB[k]), 0);
+        let trend = "";
+        if (pA && pB) {
+          const d0 = pA.reduce((s, v, k) => s + Math.abs(v - pB[k]), 0);
+          trend = d1 - d0 > 0.15 ? " — and they are <b>drifting apart</b>: schismogenesis at work"
+                : d0 - d1 > 0.15 ? " — and they are <b>drawing nearer</b>: exchange outweighing repulsion"
+                : " — holding steady";
+        }
+        cmp.hidden = false;
+        cmp.innerHTML = `Value distance between the ${nameOf(selA)} and the ${nameOf(selB)}:
+          <b class="mono">${d1.toFixed(2)}</b>${trend}. Outlined bars are the ${nameOf(selB)}.`;
+      } else { cmp.hidden = false; cmp.innerHTML = "One of the two is not among the living here."; }
+    } else cmp.hidden = true;
+  }
+
+  drawValueBars(sum);
+  drawDomBars(a);
+}
+
+function drawValueBars(sum) {
+  const cv = document.getElementById("d-values"), g = cv.getContext("2d");
+  const W = cv.width, rowH = 28, top = 6, cx = W / 2, half = W / 2 - 74;
+  g.clearRect(0, 0, W, cv.height);
+  const mA = meanAt(sum, selA), mB = selB !== null ? meanAt(sum, selB) : null;
+  g.font = "10px system-ui";
+  for (let k = 0; k < 8; k++) {
+    const y = top + k * rowH + rowH / 2;
+    g.strokeStyle = css("--line"); g.lineWidth = 1;
+    g.beginPath(); g.moveTo(cx - half, y); g.lineTo(cx + half, y); g.stroke();
+    g.strokeStyle = css("--ink-3");
+    g.beginPath(); g.moveTo(cx, y - 8); g.lineTo(cx, y + 8); g.stroke();
+    g.fillStyle = css("--ink-3"); g.textAlign = "right";
+    g.fillText(AXES[k][1], cx - half - 6, y + 3);
+    g.textAlign = "left";
+    g.fillText(AXES[k][0], cx + half + 6, y + 3);
+    if (mA) {
+      g.fillStyle = cultureColor(selA, 0.9);
+      const w = mA[k] * half;
+      g.beginPath(); g.roundRect(Math.min(cx, cx + w), y - 5, Math.abs(w), 10, 3); g.fill();
+    }
+    if (mB) {
+      g.strokeStyle = cultureColor(selB, 1, 38); g.lineWidth = 1.8;
+      const w = mB[k] * half;
+      g.beginPath(); g.roundRect(Math.min(cx, cx + w), y - 7, Math.max(1, Math.abs(w)), 14, 3); g.stroke();
+    }
+  }
+}
+
+function drawDomBars(a) {
+  const cv = document.getElementById("d-dom"), g = cv.getContext("2d");
+  const W = cv.width, rowH = 26, left = 86, span = W - left - 40;
+  g.clearRect(0, 0, W, cv.height);
+  const names = ["violence", "information", "charisma"];
+  const colors = ["--ev-ratchet", "--ev-unfusion", "--ev-fusion"];
+  g.font = "10px system-ui";
+  for (let k = 0; k < 3; k++) {
+    const y = 4 + k * rowH + rowH / 2;
+    g.fillStyle = css("--ink-3"); g.textAlign = "right";
+    g.fillText(names[k], left - 8, y + 3);
+    g.strokeStyle = css("--line");
+    g.beginPath(); g.moveTo(left, y); g.lineTo(left + span, y); g.stroke();
+    g.strokeStyle = css("--ink-3");
+    g.beginPath(); g.moveTo(left + 0.7 * span, y - 7); g.lineTo(left + 0.7 * span, y + 7); g.stroke();
+    const v = a ? a.dom[k] : 0;
+    g.fillStyle = css(colors[k]);
+    g.beginPath(); g.roundRect(left, y - 5, Math.max(1, v * span), 10, 3); g.fill();
+    g.textAlign = "left"; g.fillStyle = css("--ink-2");
+    g.fillText(v.toFixed(2), left + span + 6, y + 3);
+  }
+}
+
+// ---- density strip -----------------------------------------------------------------------
+const density = document.getElementById("density");
+(function drawDensity() {
+  const g = density.getContext("2d");
+  for (const ev of events) {
+    g.fillStyle = css(EV_COLOR[ev.type] || "--ink-3");
+    g.globalAlpha = ev.type === "liberation" ? 0.35 : 0.9;
+    g.fillRect(ev.tick / T_END * density.width - 1, 3, 2, density.height - 6);
+  }
+})();
+density.addEventListener("click", e => {
+  const r = density.getBoundingClientRect();
+  seekTo(Math.round((e.clientX - r.left) / r.width * T_END));
+});
+
+// ---- playback --------------------------------------------------------------------------------
+let last = now();
+function loop(ts) {
+  const dt = Math.min(100, ts - last); last = ts;
+  if (playing) {
+    t = Math.min(T_END, t + speed * dt / 1000);
+    fire(Math.floor(t), centroids(ownerAt(Math.floor(t))));
+    if (t >= T_END) setPlaying(false);
+  }
+  draw();
+  requestAnimationFrame(loop);
+}
+function setPlaying(p) {
+  playing = p;
+  document.getElementById("play").textContent = p ? "❚❚" : "▶";
+  if (p && t >= T_END) seekTo(0);
+}
+function seekTo(tick) {
+  t = Math.max(0, Math.min(T_END, tick));
+  seekPtrs(t); tickerReset(t);
+  pulses = []; darts = []; arcs = [];
+}
+document.getElementById("play").addEventListener("click", () => setPlaying(!playing));
+document.getElementById("speed").addEventListener("change", e => speed = +e.target.value);
+scrub.addEventListener("input", e => seekTo(+e.target.value));
+addEventListener("keydown", e => {
+  if (e.code === "Space" && !["INPUT", "SELECT", "BUTTON"].includes(e.target.tagName)) {
+    e.preventDefault(); setPlaying(!playing);
+  }
+  if (e.code === "ArrowRight") seekTo(t + 4);
+  if (e.code === "ArrowLeft") seekTo(t - 4);
+});
+
+// ---- selection & hover -------------------------------------------------------------------------
+function cellAt(e) {
+  const r = canvas.getBoundingClientRect();
+  const y = Math.floor((e.clientX - r.left) / r.width * G);
+  const x = Math.floor((e.clientY - r.top) / r.height * G);
+  if (x < 0 || y < 0 || x >= G || y >= G) return null;
+  return [x, y];
+}
+canvas.addEventListener("click", e => {
+  const c = cellAt(e); if (!c) return;
+  const o = ownerAt(Math.floor(t))[c[0]][c[1]];
+  if (o < 0) { selA = selB = null; }
+  else if (selA === null) selA = o;
+  else if (o === selA) { selA = selB; selB = null; }
+  else if (o === selB) selB = null;
+  else if (selB === null && o !== selA) selB = o;
+  else selB = o;
+  dossierKey = ""; ownVersion = "";
+});
+document.getElementById("d-close").addEventListener("click", () => {
+  selA = selB = null; dossierKey = ""; ownVersion = "";
+});
+const tip = document.getElementById("tip");
+canvas.addEventListener("mousemove", e => {
+  const c = cellAt(e); if (!c) { tip.style.opacity = 0; return; }
+  const o = ownerAt(Math.floor(t))[c[0]][c[1]];
+  const sum = summaryAt(t);
+  tip.innerHTML = o < 0 ? "unclaimed" :
+    `<b>${nameOf(o)}</b>` + (sum.c[o] ? ` · ${fmt(sum.c[o].pop)} souls` : "");
+  tip.style.opacity = 1;
+  tip.style.left = Math.min(e.clientX + 14, innerWidth - 180) + "px";
+  tip.style.top = (e.clientY + 14) + "px";
+});
+canvas.addEventListener("mouseleave", () => tip.style.opacity = 0);
+
+seekPtrs(0); tickerReset(0);
+if (reduced) setPlaying(false); else setPlaying(true);
+requestAnimationFrame(loop);
+</script>

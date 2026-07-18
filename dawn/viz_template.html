@@ -1,0 +1,486 @@
+<title>dawn — world report</title>
+<style>
+  :root {
+    --bg: #F5F6F4; --panel: #FCFDFB; --ink: #20261F; --ink-2: #5C665C;
+    --ink-3: #8B958B; --line: #DDE2DA; --accent: #2E7D6E; --accent-ink: #FFFFFF;
+    --plate: #F0F2ED; --plate-line: #D3D8CF;
+    --t-violence: #B03A28; --t-info: #1E6FB2; --t-charisma: #8A650A;
+    --ev-ratchet: #B03A28; --ev-fusion: #6C41A6; --ev-liberation: #1F7A4D;
+    --ev-unfusion: #1E6FB2; --ev-schism: #B84A6E;
+    --grid-line: #E5E9E2; --tip-bg: #20261F; --tip-ink: #F5F6F4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #191D1B; --panel: #1F2421; --ink: #E8ECE6; --ink-2: #9AA69C;
+      --ink-3: #6D786F; --line: #2C332E; --accent: #55B3A2; --accent-ink: #10201B;
+      --plate: #F0F2ED; --plate-line: #C8CEC4;
+      --t-violence: #D65F4B; --t-info: #4E95CE; --t-charisma: #B98A2E;
+      --ev-ratchet: #D65F4B; --ev-fusion: #9678D0; --ev-liberation: #43A06E;
+      --ev-unfusion: #4E95CE; --ev-schism: #D4708F;
+      --grid-line: #262C28; --tip-bg: #E8ECE6; --tip-ink: #191D1B;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #F5F6F4; --panel: #FCFDFB; --ink: #20261F; --ink-2: #5C665C;
+    --ink-3: #8B958B; --line: #DDE2DA; --accent: #2E7D6E; --accent-ink: #FFFFFF;
+    --plate: #F0F2ED; --plate-line: #D3D8CF;
+    --t-violence: #B03A28; --t-info: #1E6FB2; --t-charisma: #8A650A;
+    --ev-ratchet: #B03A28; --ev-fusion: #6C41A6; --ev-liberation: #1F7A4D;
+    --ev-unfusion: #1E6FB2; --ev-schism: #B84A6E;
+    --grid-line: #E5E9E2; --tip-bg: #20261F; --tip-ink: #F5F6F4;
+  }
+  :root[data-theme="dark"] {
+    --bg: #191D1B; --panel: #1F2421; --ink: #E8ECE6; --ink-2: #9AA69C;
+    --ink-3: #6D786F; --line: #2C332E; --accent: #55B3A2; --accent-ink: #10201B;
+    --plate: #F0F2ED; --plate-line: #C8CEC4;
+    --t-violence: #D65F4B; --t-info: #4E95CE; --t-charisma: #B98A2E;
+    --ev-ratchet: #D65F4B; --ev-fusion: #9678D0; --ev-liberation: #43A06E;
+    --ev-unfusion: #4E95CE; --ev-schism: #D4708F;
+    --grid-line: #262C28; --tip-bg: #E8ECE6; --tip-ink: #191D1B;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 0 24px 96px; }
+  header { padding: 56px 0 8px; }
+  .eyebrow { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { font-family: "Iowan Old Style", Palatino, "Palatino Linotype", "Book Antiqua", Georgia, serif;
+       font-size: clamp(34px, 5.5vw, 54px); line-height: 1.08; margin: 10px 0 14px; font-weight: 500;
+       text-wrap: balance; letter-spacing: -0.01em; }
+  .dek { max-width: 62ch; color: var(--ink-2); font-size: 16.5px; margin: 0; }
+  .dek em { color: var(--ink); font-style: italic; }
+
+  section { margin-top: 64px; }
+  h2 { font-family: "Iowan Old Style", Palatino, "Palatino Linotype", "Book Antiqua", Georgia, serif;
+       font-size: 26px; font-weight: 500; margin: 0 0 4px; text-wrap: balance; }
+  .sub { color: var(--ink-2); margin: 0 0 20px; max-width: 68ch; }
+  .sub .stat { color: var(--ink); font-weight: 600; }
+
+  .maps { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 720px) { .maps { grid-template-columns: 1fr; } }
+  .map-panel { background: var(--plate); border: 1px solid var(--plate-line); border-radius: 6px; padding: 14px; }
+  .map-panel figcaption { display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: #4A5248; padding: 0 2px 10px; font-weight: 600; }
+  .map-panel figcaption span { letter-spacing: 0; text-transform: none; font-weight: 400; color: #6B7368; }
+  .map-panel figure { margin: 0; }
+  canvas { display: block; width: 100%; height: auto; border-radius: 3px; cursor: crosshair; }
+  .map-note { color: var(--ink-2); font-size: 14px; max-width: 72ch; margin-top: 16px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; }
+  .chip { background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+          padding: 10px 14px; display: flex; align-items: baseline; gap: 9px; }
+  .chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); align-self: center; flex: none; }
+  .chip.fail .dot { background: var(--ev-ratchet); }
+  .chip .k { font-size: 12px; color: var(--ink-2); }
+  .chip .v { font-size: 15px; font-weight: 650; }
+
+  .chart-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 18px 18px 10px; }
+  .chart-card svg { width: 100%; height: auto; display: block; }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-2); padding: 2px 4px 10px; }
+  .legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+  svg text { font: 11px system-ui, sans-serif; fill: var(--ink-3); }
+  svg .axis-label { font-variant-numeric: tabular-nums; }
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 720px) { .duo { grid-template-columns: 1fr; } }
+
+  blockquote { margin: 0; padding: 4px 0 4px 22px; border-left: 2px solid var(--accent); }
+  blockquote p { font-family: "Iowan Old Style", Palatino, "Palatino Linotype", "Book Antiqua", Georgia, serif;
+                 font-size: 17.5px; line-height: 1.65; margin: 0; }
+  blockquote footer { font-size: 13px; color: var(--ink-2); margin-top: 8px; }
+  blockquote footer .redact { color: var(--ink-3); font-style: italic; }
+  .quotes { display: grid; gap: 30px; max-width: 74ch; }
+  .attrition { font-size: 13.5px; color: var(--ink-2); border-top: 1px solid var(--line);
+               margin-top: 30px; padding-top: 14px; max-width: 74ch; }
+
+  ul.scars { list-style: none; padding: 0; margin: 0; max-width: 74ch; }
+  ul.scars li { padding: 10px 2px; border-bottom: 1px solid var(--line); display: flex; gap: 14px; align-items: baseline; }
+  ul.scars .yr { flex: none; width: 84px; color: var(--ink-3); font-size: 12.5px; }
+  ul.scars .kind { flex: none; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+                   color: var(--accent); font-weight: 600; width: 110px; }
+  ul.scars .note { color: var(--ink-2); font-style: italic; }
+  ul.scars .note b { color: var(--ink); font-weight: 600; font-style: normal; }
+
+  #tip { position: fixed; pointer-events: none; background: var(--tip-bg); color: var(--tip-ink);
+         font-size: 12.5px; line-height: 1.5; padding: 7px 10px; border-radius: 5px; opacity: 0;
+         transition: opacity 80ms; max-width: 260px; z-index: 10; font-variant-numeric: tabular-nums; }
+  @media (prefers-reduced-motion: reduce) { #tip { transition: none; } }
+
+  footer.colophon { margin-top: 80px; border-top: 1px solid var(--line); padding-top: 18px;
+                    font-size: 13.5px; color: var(--ink-2); max-width: 74ch; }
+  footer.colophon code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+                         background: var(--panel); border: 1px solid var(--line);
+                         border-radius: 4px; padding: 1px 6px; font-size: 12.5px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow" id="eyebrow"></div>
+    <h1 id="title"></h1>
+    <p class="dek" id="dek"></p>
+  </header>
+
+  <section>
+    <h2>The land is not the people</h2>
+    <p class="sub" id="map-sub"></p>
+    <div class="maps">
+      <div class="map-panel"><figure>
+        <figcaption>Plate I — The Land <span>six biomes</span></figcaption>
+        <canvas id="map-biome" width="480" height="480" aria-label="Biome map"></canvas>
+      </figure></div>
+      <div class="map-panel"><figure>
+        <figcaption>Plate II — The Peoples <span id="map-year"></span></figcaption>
+        <canvas id="map-owner" width="480" height="480" aria-label="Culture territory map"></canvas>
+      </figure></div>
+    </div>
+    <p class="map-note">The peoples began differentiated — no Eden, no origin story — and the
+      seasons of schismogenesis, defection, schism, and abandonment that followed produced these
+      borders. Unclaimed grey is not empty land; much of it is abandonment.</p>
+  </section>
+
+  <section>
+    <h2>Seven claims, checked unattended</h2>
+    <p class="sub">The acceptance criteria from the project brief, evaluated on this run.
+      A red mark is an honest failure, not a bug notice.</p>
+    <div class="chips" id="chips"></div>
+  </section>
+
+  <section id="star-section">
+    <h2 id="star-title"></h2>
+    <p class="sub" id="star-sub"></p>
+    <div class="chart-card">
+      <div class="legend">
+        <span><i style="background:var(--t-violence)"></i>Control of violence</span>
+        <span><i style="background:var(--t-info)"></i>Control of information</span>
+        <span><i style="background:var(--t-charisma)"></i>Charismatic standing</span>
+        <span style="color:var(--ink-3)">▲ fusion &nbsp; ▽ unfusion &nbsp; ┄ fusion threshold</span>
+      </div>
+      <svg id="dom-chart" viewBox="0 0 1000 320" role="img" aria-label="Domination tracks over time"></svg>
+    </div>
+  </section>
+
+  <section>
+    <h2>The record of events</h2>
+    <p class="sub">Every recorded turn of the wheel, by kind. Liberations are the constant
+      weather of these worlds; fusions are their rare storms. Diamonds in the ratchet lane are
+      hardenings — the chief who begins counting.</p>
+    <div class="chart-card">
+      <svg id="lanes" viewBox="0 0 1000 240" role="img" aria-label="Event timeline by type"></svg>
+    </div>
+  </section>
+
+  <section>
+    <h2>The demographic price</h2>
+    <p class="sub">Values are priced, never selected — but the price is real. The population
+      pays for caloric extremity, walk-outs, and broken ratchets; the roster of peoples
+      churns through schism and abandonment.</p>
+    <div class="duo">
+      <div class="chart-card">
+        <div class="legend"><span><i style="background:var(--accent)"></i>Total population, all peoples</span></div>
+        <svg id="pop-chart" viewBox="0 0 480 220" role="img" aria-label="Total population over time"></svg>
+      </div>
+      <div class="chart-card">
+        <div class="legend"><span><i style="background:var(--t-info)"></i>Living cultures</span></div>
+        <svg id="n-chart" viewBox="0 0 480 220" role="img" aria-label="Number of living cultures over time"></svg>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>From the surviving record</h2>
+    <p class="sub">The chronicle is an in-world object: authored, biased, and decaying. One
+      surviving entry for each kind of turning point, verbatim.</p>
+    <div class="quotes" id="quotes"></div>
+    <p class="attrition" id="attrition"></p>
+  </section>
+
+  <section>
+    <h2>Marks on the land</h2>
+    <p class="sub">Scars are content: refusals, abandonments, and dead routes stay queryable
+      in the world forever, whether or not any chronicle remembers them.</p>
+    <ul class="scars" id="scars"></ul>
+  </section>
+
+  <footer class="colophon">
+    <p id="colophon">Generated by <b>dawn</b> Phase 1 — deterministic core, stub oracle, no model calls.</p>
+  </footer>
+</div>
+<div id="tip" role="status"></div>
+
+<script>
+const DATA = __DATA__;
+
+const BIOME_NAMES = ["steppe","forest","river valley","coast","mountain","desert"];
+const BIOME_COLORS = ["#CBBE8A","#5F7F4E","#8FAF6E","#7FA6B8","#9A9489","#D8C79A"];
+const UNCLAIMED = "#E3E4DE";
+const cultureColor = cid => `hsl(${(cid * 137.508) % 360}, 52%, 52%)`;
+const YEAR = t => Math.round(t / 4);
+const YEARS = YEAR(DATA.ticks);
+const fmt = n => n.toLocaleString("en-US");
+
+document.title = `The World of Seed ${DATA.seed} — dawn`;
+document.getElementById("eyebrow").textContent =
+  `dawn · phase 1 · deterministic stub oracle · ${fmt(DATA.ticks)} seasons`;
+document.getElementById("title").textContent = `The World of Seed ${DATA.seed}`;
+document.getElementById("dek").innerHTML =
+  `${YEARS} years of generated history from a single integer. ` +
+  `${Object.values(DATA.cultures).filter(c => c.alive).length} peoples survive to the close of the record. ` +
+  `Nothing below was drawn or written by hand — every border was argued into place, every quotation is from the ` +
+  `world's own surviving chronicle, and <em>the same seed will produce this exact world forever</em>.`;
+document.getElementById("map-year").textContent = `year ${YEARS}`;
+document.getElementById("map-sub").innerHTML =
+  `The core claim of the engine, made visible: culture borders must not follow terrain. ` +
+  `Mutual information between biome and territory is <span class="stat mono">${DATA.metrics.terrain_decorrelation.nmi}</span> ` +
+  `against a 0.30 ceiling — knowing the ecology of a cell tells you almost nothing about who lives there. Hover either map.`;
+document.getElementById("colophon").innerHTML =
+  `Generated by <b>dawn</b> Phase 1 — deterministic core, stub oracle, no model calls. ` +
+  `Reproduce this exact world with <code>dawn run --seed ${DATA.seed} --ticks ${DATA.ticks}</code>; verify it ` +
+  `with <code>dawn replay</code> (seed + journal = world). Phase 2 replaces the stub's voice with a model's; ` +
+  `Phase 3 lets the model's choices fork history.`;
+
+const tip = document.getElementById("tip");
+function showTip(html, x, y) {
+  tip.innerHTML = html; tip.style.opacity = 1;
+  const r = tip.getBoundingClientRect();
+  tip.style.left = Math.min(x + 14, innerWidth - r.width - 8) + "px";
+  tip.style.top  = Math.min(y + 14, innerHeight - r.height - 8) + "px";
+}
+function hideTip() { tip.style.opacity = 0; }
+
+// ---- maps -------------------------------------------------------------------
+function drawMaps() {
+  const g = DATA.grid, s = 480 / g;
+  const bc = document.getElementById("map-biome").getContext("2d");
+  const oc = document.getElementById("map-owner").getContext("2d");
+  for (let x = 0; x < g; x++) for (let y = 0; y < g; y++) {
+    bc.fillStyle = BIOME_COLORS[DATA.biome[x][y]];
+    bc.fillRect(y * s, x * s, s + 0.5, s + 0.5);
+    const own = DATA.owner[x][y];
+    oc.fillStyle = own < 0 ? UNCLAIMED : cultureColor(own);
+    oc.fillRect(y * s, x * s, s + 0.5, s + 0.5);
+  }
+  for (const ctx of [oc, bc]) {
+    ctx.strokeStyle = "rgba(32,38,31,0.55)"; ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = 0; x < g; x++) for (let y = 0; y < g; y++) {
+      const o = DATA.owner[x][y];
+      if (x + 1 < g && DATA.owner[x + 1][y] !== o) { ctx.moveTo(y * s, (x + 1) * s); ctx.lineTo((y + 1) * s, (x + 1) * s); }
+      if (y + 1 < g && DATA.owner[x][y + 1] !== o) { ctx.moveTo((y + 1) * s, x * s); ctx.lineTo((y + 1) * s, (x + 1) * s); }
+    }
+    ctx.stroke();
+  }
+  for (const id of ["map-biome", "map-owner"]) {
+    const el = document.getElementById(id);
+    el.addEventListener("mousemove", e => {
+      const r = el.getBoundingClientRect();
+      const y = Math.floor((e.clientX - r.left) / r.width * g);
+      const x = Math.floor((e.clientY - r.top) / r.height * g);
+      if (x < 0 || y < 0 || x >= g || y >= g) return hideTip();
+      const own = DATA.owner[x][y], b = BIOME_NAMES[DATA.biome[x][y]];
+      const who = own < 0 ? "unclaimed — hearths gone cold" :
+        `<b>${DATA.cultures[own].name}</b> · ${fmt(DATA.cultures[own].pop)} souls`;
+      showTip(`${who}<br>${b}`, e.clientX, e.clientY);
+    });
+    el.addEventListener("mouseleave", hideTip);
+  }
+}
+
+// ---- acceptance chips ---------------------------------------------------------
+function drawChips() {
+  const m = DATA.metrics;
+  const rows = [
+    ["Terrain decorrelation", `NMI ${m.terrain_decorrelation.nmi}`, m.terrain_decorrelation.pass],
+    ["Culture areas, values inverted", `${m.culture_area_inverted.count} pairs`, m.culture_area_inverted.pass],
+    ["Lineages still seasonal", `${m.seasonal_vs_ratcheted.switching_now} switch · ${m.seasonal_vs_ratcheted.ratcheted_now} ratcheted`, m.seasonal_vs_ratcheted.pass],
+    ["Fusion contingent & reversible", `${m.fusion_contingent.fusions} fusions · ${m.fusion_contingent.unfusions} undone`, m.fusion_contingent.pass],
+    ["Liberation rare but possible", `${m.liberation_rare_possible.events} events · ${m.liberation_rare_possible.rate_per_culture_gen}/culture-gen`, m.liberation_rare_possible.pass],
+    ["Chronicle cadence", `${fmt(m.chronicle_cadence.surviving_entries)} entries survive`, m.chronicle_cadence.pass],
+    ["Long-run sanity", `${m.sanity_bounds.living} peoples · ${fmt(m.sanity_bounds.total_pop)} souls`, m.sanity_bounds.pass],
+  ];
+  document.getElementById("chips").innerHTML = rows.map(([k, v, ok]) =>
+    `<div class="chip${ok ? "" : " fail"}"><span class="dot"></span><span class="k">${k}</span><span class="v mono">${v}</span></div>`).join("");
+}
+
+// ---- shared svg helpers -------------------------------------------------------
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  parent.appendChild(e); return e;
+}
+function pathFrom(pts) { return pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(""); }
+function yearTicks(step) { const out = []; for (let yr = 0; yr <= YEARS; yr += step) out.push(yr); return out; }
+
+// ---- domination chart -----------------------------------------------------------
+function drawDom() {
+  if (!DATA.star || !DATA.star.series.some(d => d.dom)) {
+    document.getElementById("star-section").style.display = "none"; return;
+  }
+  const svg = document.getElementById("dom-chart");
+  const W = 1000, H = 320, L = 46, R = 12, T = 16, B = 34;
+  const pw = W - L - R, ph = H - T - B;
+  const S = DATA.star.series.filter(d => d.dom);
+  const X = t => L + t / DATA.ticks * pw, Y = v => T + (1 - v) * ph;
+  const fus = DATA.star.fusions, unf = DATA.metrics.fusion_contingent.unfusions;
+  const NUM = ["Zero","One","Two","Three","Four","Five","Six","Seven","Eight","Nine","Ten",
+               "Eleven","Twelve","Thirteen","Fourteen","Fifteen"];
+  document.getElementById("star-title").textContent = fus > 0
+    ? `${NUM[fus] || fus} king${fus === 1 ? "" : "s"}, ${unf} collapse${unf === 1 ? "" : "s"}`
+    : "No kings arose here";
+  document.getElementById("star-sub").innerHTML = fus > 0
+    ? `The three domination tracks of the <b>${DATA.star.name}</b> — the people of this world who kept assembling
+       kingship and kept losing it. Statehood is a conjunction the code detects, never an event it schedules:
+       ${fus} time${fus === 1 ? "" : "s"} all three tracks fused above the threshold, and succession, mockery, or refusal pulled them back down.`
+    : `The three domination tracks of the <b>${DATA.star.name}</b> — the people of this world who came nearest to
+       kingship. No fusion of all three tracks ever completed in these ${YEARS} years; statehood is a conjunction
+       the code detects, and in this world the conjunction never occurred.`;
+
+  for (const v of [0, 0.25, 0.5, 0.75, 1]) {
+    el("line", { x1: L, x2: W - R, y1: Y(v), y2: Y(v), stroke: "var(--grid-line)" }, svg);
+    el("text", { x: L - 8, y: Y(v) + 4, "text-anchor": "end", class: "axis-label" }, svg).textContent = v;
+  }
+  for (const yr of yearTicks(Math.max(50, Math.round(YEARS / 5 / 50) * 50)))
+    el("text", { x: X(yr * 4), y: H - 12, "text-anchor": "middle", class: "axis-label" }, svg).textContent = "yr " + yr;
+  el("line", { x1: L, x2: W - R, y1: Y(0.7), y2: Y(0.7), stroke: "var(--ink-3)", "stroke-dasharray": "5 5", "stroke-width": 1 }, svg);
+  el("text", { x: W - R, y: Y(0.7) - 6, "text-anchor": "end" }, svg).textContent = "fusion threshold";
+
+  const colors = ["var(--t-violence)", "var(--t-info)", "var(--t-charisma)"];
+  const names = ["violence", "information", "charisma"];
+  for (let k = 0; k < 3; k++) {
+    el("path", { d: pathFrom(S.map(d => [X(d.tick), Y(d.dom[k])])),
+                 fill: "none", stroke: colors[k], "stroke-width": 2, "stroke-linejoin": "round" }, svg);
+  }
+  for (const ev of DATA.events.filter(e => e.culture === DATA.star.cid && (e.type === "fusion" || e.type === "unfusion"))) {
+    const up = ev.type === "fusion";
+    el("path", { d: `M${X(ev.tick)} ${T - 2} l ${up ? "-5 -8 10 0" : "-5 8 10 0"} z`,
+                 fill: up ? "var(--ev-fusion)" : "none",
+                 stroke: up ? "none" : "var(--ev-unfusion)", "stroke-width": 1.5,
+                 transform: `translate(0, ${up ? 10 : 2})` }, svg);
+  }
+  const cross = el("line", { y1: T, y2: H - B, stroke: "var(--ink-3)", "stroke-width": 1, opacity: 0 }, svg);
+  svg.addEventListener("mousemove", e => {
+    const r = svg.getBoundingClientRect();
+    const t = (e.clientX - r.left) / r.width * W;
+    if (t < L || t > W - R) { cross.setAttribute("opacity", 0); return hideTip(); }
+    const tick = (t - L) / pw * DATA.ticks;
+    let i = 0;
+    while (i < S.length - 1 && S[i + 1].tick < tick) i++;
+    const d = S[i];
+    cross.setAttribute("x1", X(d.tick)); cross.setAttribute("x2", X(d.tick));
+    cross.setAttribute("opacity", 0.6);
+    showTip(`<b>Year ${YEAR(d.tick)}</b><br>` + names.map((n, k) =>
+      `${n}: ${d.dom[k].toFixed(2)}`).join("<br>"), e.clientX, e.clientY);
+  });
+  svg.addEventListener("mouseleave", () => { cross.setAttribute("opacity", 0); hideTip(); });
+}
+
+// ---- event lanes ---------------------------------------------------------------
+function drawLanes() {
+  const svg = document.getElementById("lanes");
+  const W = 1000, H = 240, L = 96, R = 12, T = 12, B = 30;
+  const LANES = [
+    ["ratchet", "Ratchets", "var(--ev-ratchet)"],
+    ["fusion", "Fusions", "var(--ev-fusion)"],
+    ["liberation", "Liberations", "var(--ev-liberation)"],
+    ["unfusion", "Unfusions", "var(--ev-unfusion)"],
+    ["schism", "Schisms", "var(--ev-schism)"],
+  ];
+  const lh = (H - T - B) / LANES.length;
+  const X = t => L + t / DATA.ticks * (W - L - R);
+  for (const yr of yearTicks(Math.max(50, Math.round(YEARS / 5 / 50) * 50))) {
+    el("line", { x1: X(yr * 4), x2: X(yr * 4), y1: T, y2: H - B, stroke: "var(--grid-line)" }, svg);
+    el("text", { x: X(yr * 4), y: H - 10, "text-anchor": "middle", class: "axis-label" }, svg).textContent = "yr " + yr;
+  }
+  LANES.forEach(([key, label, color], i) => {
+    const cy = T + i * lh + lh / 2;
+    const evs = DATA.events.filter(e => e.type === key);
+    el("text", { x: L - 12, y: cy + 4, "text-anchor": "end", fill: "var(--ink-2)" }, svg).textContent = label;
+    el("text", { x: W - R, y: cy + 4, "text-anchor": "end", class: "mono" }, svg).textContent = evs.length;
+    for (const ev of evs) {
+      const r = el("rect", { x: X(ev.tick) - 1, y: cy - 8, width: 2.2, height: 16, rx: 1,
+                             fill: color, opacity: key === "liberation" ? 0.45 : 0.9 }, svg);
+      r.addEventListener("mousemove", e => showTip(
+        `<b>${label.replace(/s$/, "")}</b> · year ${YEAR(ev.tick)}<br>${ev.culture != null && DATA.cultures[ev.culture] ? "among the " + DATA.cultures[ev.culture].name : ""}`,
+        e.clientX, e.clientY));
+      r.addEventListener("mouseleave", hideTip);
+    }
+    if (key === "ratchet") for (const ev of DATA.events.filter(e => e.type === "hardening")) {
+      const d = el("path", { d: `M${X(ev.tick)} ${cy - 9} l6 9 -6 9 -6 -9 z`, fill: "none",
+                             stroke: color, "stroke-width": 1.6 }, svg);
+      d.addEventListener("mousemove", e => showTip(
+        `<b>Hardening</b> · year ${YEAR(ev.tick)}<br>the chief begins counting — among the ${DATA.cultures[ev.culture].name}`,
+        e.clientX, e.clientY));
+      d.addEventListener("mouseleave", hideTip);
+    }
+  });
+}
+
+// ---- small multiples -------------------------------------------------------------
+function drawSeries(id, pts, color, yfmt, area) {
+  const svg = document.getElementById(id);
+  const W = 480, H = 220, L = 52, R = 8, T = 12, B = 30;
+  const ymax = Math.max(...pts.map(p => p[1])) * 1.08 || 1;
+  const X = t => L + t / DATA.ticks * (W - L - R), Y = v => T + (1 - v / ymax) * (H - T - B);
+  for (let i = 0; i <= 3; i++) {
+    const v = ymax * i / 3;
+    el("line", { x1: L, x2: W - R, y1: Y(v), y2: Y(v), stroke: "var(--grid-line)" }, svg);
+    el("text", { x: L - 6, y: Y(v) + 4, "text-anchor": "end", class: "axis-label" }, svg).textContent = yfmt(v);
+  }
+  for (const yr of yearTicks(Math.max(50, Math.round(YEARS / 4 / 50) * 50)))
+    el("text", { x: X(yr * 4), y: H - 10, "text-anchor": "middle", class: "axis-label" }, svg).textContent = "yr " + yr;
+  const line = pts.map(p => [X(p[0]), Y(p[1])]);
+  if (area) el("path", { d: pathFrom(line) + `L${X(pts[pts.length-1][0])} ${Y(0)} L${X(pts[0][0])} ${Y(0)} z`,
+                         fill: color, opacity: 0.12 }, svg);
+  el("path", { d: pathFrom(line), fill: "none", stroke: color, "stroke-width": 2 }, svg);
+  const dot = el("circle", { r: 3.5, fill: color, opacity: 0 }, svg);
+  svg.addEventListener("mousemove", e => {
+    const r = svg.getBoundingClientRect();
+    const t = (e.clientX - r.left) / r.width * W;
+    if (t < L || t > W - R) { dot.setAttribute("opacity", 0); return hideTip(); }
+    const i = Math.max(0, Math.min(pts.length - 1, Math.round((t - L) / (W - L - R) * (pts.length - 1))));
+    dot.setAttribute("cx", X(pts[i][0])); dot.setAttribute("cy", Y(pts[i][1])); dot.setAttribute("opacity", 1);
+    showTip(`<b>Year ${YEAR(pts[i][0])}</b><br>${yfmt(pts[i][1])}`, e.clientX, e.clientY);
+  });
+  svg.addEventListener("mouseleave", () => { dot.setAttribute("opacity", 0); hideTip(); });
+}
+
+// ---- chronicle & scars -------------------------------------------------------------
+const LABEL = { ratchet: "A ratchet", fusion: "A fusion", unfusion: "An unfusion",
+                liberation: "A liberation", hardening: "A hardening", schism: "A schism" };
+function drawQuotes() {
+  document.getElementById("quotes").innerHTML = DATA.chronicle_picks.length
+    ? DATA.chronicle_picks.map(c => `
+      <blockquote>
+        <p>${c.text}</p>
+        <footer><b>${LABEL[c.event_type] || c.event_type}</b>, year ${YEAR(c.tick)} — as
+          ${c.medium === "written" ? "written" : "sung"} by the ${c.author_name}.
+          ${c.redacted ? '<span class="redact">This entry bears the marks of a careful hand: what it omits, it omits on purpose.</span>' : ""}
+        </footer>
+      </blockquote>`).join("")
+    : `<p class="sub">No turning-point entries survive in this world's chronicle.</p>`;
+  document.getElementById("attrition").innerHTML =
+    `Of <b class="mono">${fmt(DATA.n_entries)}</b> tellings known to have existed, only
+     <b class="mono">${fmt(DATA.n_surviving)}</b> survive — oral memory decays fast and resists capture;
+     writing persists and gets captured. The almanac is compiled from what remains and says where it is silent.`;
+}
+function drawScars() {
+  document.getElementById("scars").innerHTML = DATA.scars.length
+    ? DATA.scars.map(s => `
+      <li><span class="yr mono">Year ${YEAR(s.tick)}</span>
+          <span class="kind">${s.kind.replace("_", " ")}</span>
+          <span class="note"><b>${s.where}</b> — ${s.note}</span></li>`).join("")
+    : `<li><span class="note">The land keeps no marks from these years.</span></li>`;
+}
+
+drawMaps(); drawChips(); drawDom(); drawLanes();
+drawSeries("pop-chart", DATA.pop_series.map(p => [p.tick, p.pop]), "var(--accent)",
+           v => (v >= 2000 ? Math.round(v / 1000) + "k" : Math.round(v)), true);
+drawSeries("n-chart", DATA.pop_series.map(p => [p.tick, p.n]), "var(--t-info)",
+           v => Math.round(v), false);
+drawQuotes(); drawScars();
+</script>
