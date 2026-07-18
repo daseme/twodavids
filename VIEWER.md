@@ -30,6 +30,15 @@ seed 3 this exposes the argument directly: Thaillaukak wrote 663 entries
 and none reach us, Kwirthesyus 1 of 433, while Yuslos keeps 234 of 474;
 oral entries survive at 3%, written at 76%. Whose past we can see is a
 fact about media, not about who mattered.
+Scars render as the material record — ratchet marks as standing stones, cold
+hearths at abandonments, a broken line where a hospitality route died — and
+they persist in `dig` even for unattested peoples, which is the point: the
+mark outlasts the argument about it. Clicking a people opens a **dossier**
+(inspection only, §5): population, seasonal round, the eight axes with
+salience as band width, the domination tracks, what survives of their record,
+and the prose sketch verbatim — the same text the oracle reads when it argues
+as them. `window.__dawn` exposes read-only counts so the page can be checked
+by a driver rather than by eye.
 Still to come: interpolated camera paths between beats, sound.*
 
 ## 0. The architecture in one sentence
