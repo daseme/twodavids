@@ -27,8 +27,14 @@ where the full treatment in VIEWER.md §§2–4 is still to come. -->
     font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
     color: var(--ink); -webkit-font-smoothing: antialiased; }
   ::selection { background: rgba(138,51,36,0.24); }
-  #stage { position: absolute; inset: 0; }
-  .panel { position: absolute;
+  #stage { position: absolute; inset: 0; z-index: 0; }
+  /* Between the world and the furniture: it shades the land, never the
+     parchment sitting on top of it. */
+  #vignette { position: fixed; inset: 0; pointer-events: none; z-index: 1;
+    background: radial-gradient(ellipse at center,
+      transparent 56%, rgba(28,18,9,0.30) 100%); }
+  #help, #margins, #modenote { z-index: 2; }
+  .panel { position: absolute; z-index: 2;
     background: linear-gradient(180deg, var(--parchment), var(--parchment-2));
     border: 1px solid var(--rule); border-radius: 6px;
     box-shadow: var(--shadow-panel); }
@@ -148,6 +154,11 @@ where the full treatment in VIEWER.md §§2–4 is still to come. -->
 </style>
 
 <div id="stage"></div>
+<!-- A warm vignette in CSS over the canvas. It costs nothing, needs no
+     composer, and does most of what post-processing would be reached for
+     here: it frames the world as an object on a page, which is the whole
+     conceit — marginalia, not a viewport. -->
+<div id="vignette"></div>
 <div class="panel" id="masthead">
   <h1 id="title">The Annals</h1>
   <div class="sub" id="subtitle"></div>
@@ -207,8 +218,12 @@ function mulberry32(a) {
   };
 }
 function hueOf(cid) { return (cid * 137.508) % 360; }
+// Authored in sRGB, like the `hsl()` the legend swatches use. Without the
+// colour-space argument three takes these as already-linear and lifts them on
+// output, so the same culture came out paler in the world than on its own
+// chip — the two have been disagreeing, and the swatch was the honest one.
 function colorOf(cid, l = 0.5) {
-  return new THREE.Color().setHSL(hueOf(cid) / 360, 0.5, l);
+  return new THREE.Color().setHSL(hueOf(cid) / 360, 0.5, l, THREE.SRGBColorSpace);
 }
 
 // ---- deterministic detail noise (the elaboration rule, §0) ------------------
@@ -255,9 +270,24 @@ function fbm(x, y, s) {
 const SHADE_REF = 0.75;
 const shade = (c) => [c[0] / SHADE_REF, c[1] / SHADE_REF, c[2] / SHADE_REF];
 
+// Form shading, baked from the same fixed angle the terrain uses. A box lit
+// only by ambient returns the same colour on all six faces, which is most of
+// what "blocky" actually means — the silhouette is fine, the faces just do not
+// separate. Darkening each face by its own normal before any light reaches it
+// gives every built thing form it keeps at any hour, undersides included.
+const FORM_L = [-0.4529, 0.7851, -0.4227];
+const formShade = (nx, ny, nz) => {
+  const d = nx * FORM_L[0] + ny * FORM_L[1] + nz * FORM_L[2];
+  return 0.80 + 0.30 * Math.max(0, Math.min(1, d * 0.5 + 0.5));
+};
+
 function bake(geo, c) {
   const n = geo.attributes.position.count, s = shade(c), cs = new Float32Array(n * 3);
-  for (let i = 0; i < n; i++) { cs[i * 3] = s[0]; cs[i * 3 + 1] = s[1]; cs[i * 3 + 2] = s[2]; }
+  const na = geo.attributes.normal;
+  for (let i = 0; i < n; i++) {
+    const f = na ? formShade(na.getX(i), na.getY(i), na.getZ(i)) : 1;
+    cs[i * 3] = s[0] * f; cs[i * 3 + 1] = s[1] * f; cs[i * 3 + 2] = s[2] * f;
+  }
   geo.setAttribute("color", new THREE.BufferAttribute(cs, 3));
   return geo;
 }
@@ -281,8 +311,8 @@ function mergeParts(parts) {
       vs.push(_mp.v.x, _mp.v.y, _mp.v.z);
       _mp.n.fromBufferAttribute(na, i).applyMatrix3(_mp.nm).normalize();
       ns.push(_mp.n.x, _mp.n.y, _mp.n.z);
-      const s = shade(part.c);
-      cs.push(s[0], s[1], s[2]);
+      const s = shade(part.c), f = formShade(_mp.n.x, _mp.n.y, _mp.n.z);
+      cs.push(s[0] * f, s[1] * f, s[2] * f);
     }
   }
   const geo = new THREE.BufferGeometry();
@@ -533,6 +563,20 @@ for (let i = 0; i < pos.count; i++) {
   pos.setXYZ(i, x - G / 2, heightAt(x, y), y - G / 2);
 }
 terrainGeo.computeVertexNormals();
+// Baked relief: a hillshade from a fixed angle, multiplied into the ground
+// colour and independent of where the sun actually is. The real light swings
+// through the day and flattens the land twice a cycle when it comes from
+// overhead or from behind; this does not move, so landform stays legible at
+// every hour and under any weather. Computed once, applied by paintGround.
+const SHADE_L = new THREE.Vector3(-0.45, 0.78, -0.42).normalize();
+const hillshade = new Float32Array(pos.count);
+{
+  const nrm = terrainGeo.attributes.normal, n = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    n.fromBufferAttribute(nrm, i);
+    hillshade[i] = 0.84 + 0.30 * Math.max(0, Math.min(1, n.dot(SHADE_L)));
+  }
+}
 terrainGeo.setAttribute("color",
   new THREE.BufferAttribute(new Float32Array(pos.count * 3), 3));
 const terrain = new THREE.Mesh(terrainGeo,
@@ -636,13 +680,27 @@ function updateWater(now) {
 // closed ones crisp. [SCAFFOLD] v1 is a fixed-kernel blend weighted by the
 // owner's closed value; dead hospitality routes (scars) don't yet sharpen edges.
 // The viewer keeps its own biome palette, deliberately diverging from the 2D
-// watch's BIOME_TINT. Watch paints unlit pixels, where those pale tints read
-// correctly; here the same values pass under a bright sun and come back as
-// sand everywhere, biomes indistinguishable. These are saturated and pulled
-// apart so meadow, wood, upland and desert are told apart from altitude —
-// the brief's broad tonal masses, which flat tints cannot give.
-const BIOME_3D = [[150,152,101], [83,112,70], [116,146,88],
-                  [188,178,142], [132,131,141], [198,178,133]];
+// watch's BIOME_TINT: watch paints unlit pixels, where those pale tints read
+// correctly, while here the same values pass under a sun. Authored as hex and
+// converted, so what is picked is what is seen — the previous array went in as
+// raw floats, was taken for linear, and came back lifted, which is why the map
+// read as sand and why the fix at the time was to over-saturate the palette
+// against the error rather than remove it.
+// Mid-value, warm-biased, desaturated: gouache, not a saturated screen palette.
+const BIOME_3D = [0xa8ae6a, 0x5c7a44, 0x7d9c52, 0xcbbb8f, 0x8a8e96, 0xd2bb8e]
+  .map(h => new THREE.Color(h));
+// The ground wears a people's colour at lower saturation than its banner does.
+// Correcting the colour space made the territory wash vivid enough to fight the
+// biome underneath it and turn hillsides magenta; membership should read as a
+// tint on the land, not as paint over it (§3.1).
+const groundTintOf = (cid) =>
+  new THREE.Color().setHSL(hueOf(cid) / 360, 0.30, 0.46, THREE.SRGBColorSpace);
+const groundTints = new Map();
+function groundTint(cid) {
+  let c = groundTints.get(cid);
+  if (!c) { c = groundTintOf(cid); groundTints.set(cid, c); }
+  return c;
+}
 const tintTmp = new THREE.Color(), snowTmp = new THREE.Color(0.91, 0.93, 0.96);
 // The ground takes the season too — the brief's rule that a season must change
 // the mood, not merely recolour the grass. Winter additionally lays snow by
@@ -655,8 +713,7 @@ function paintGround(tick) {
   const season = tick % 4, sg = SEASON_GROUND[season];
   for (let i = 0; i < pos.count; i++) {
     const x = i % G, y = Math.floor(i / G);
-    const [r, g, b] = BIOME_3D[DATA.biome[x][y]];
-    tintTmp.setRGB(r / 255, g / 255, b / 255);
+    tintTmp.copy(BIOME_3D[DATA.biome[x][y]]);
     if (DATA.water[x][y]) { tintTmp.multiplyScalar(0.55); }
     else {
       // Neighborhood vote: how much of the 3x3 patch shares my owner. A cell
@@ -675,9 +732,9 @@ function paintGround(tick) {
         const edge = n ? same / n : 1;
         const sharp = 0.35 + 0.45 * Math.max(0, closed);  // closed ⇒ crisp frontier
         const w = 0.30 * Math.min(1, edge < 1 ? (edge - 0.3) / 0.7 * (1 - sharp) + sharp * (edge > 0.6 ? 1 : 0) : 1);
-        tintTmp.lerp(colorOf(me, 0.45), Math.max(0, w));
+        tintTmp.lerp(groundTint(me), Math.max(0, w));
       }
-      const k = mottle[x][y];
+      const k = mottle[x][y] * hillshade[i];
       tintTmp.setRGB(tintTmp.r * sg[0] * k, tintTmp.g * sg[1] * k, tintTmp.b * sg[2] * k);
       if (season === 3) {
         const snow = Math.max(0, Math.min(0.72, (DATA.elevation[x][y] / 1000 - 0.34) * 1.5));
@@ -1398,12 +1455,14 @@ const LEAF = {
 function gradeCanopy(geo, lo, hi) {
   geo.computeBoundingBox();
   const bb = geo.boundingBox, span = Math.max(1e-6, bb.max.y - bb.min.y);
-  const p = geo.attributes.position, cs = new Float32Array(p.count * 3);
+  // Multiplies into whatever mergeParts already baked — the form shading is
+  // underneath this, and overwriting would throw it away.
+  const p = geo.attributes.position, c = geo.attributes.color;
   for (let i = 0; i < p.count; i++) {
     const t = (p.getY(i) - bb.min.y) / span, k = lo + (hi - lo) * (t * t * (3 - 2 * t));
-    cs[i * 3] = cs[i * 3 + 1] = cs[i * 3 + 2] = k;
+    c.array[i * 3] *= k; c.array[i * 3 + 1] *= k; c.array[i * 3 + 2] *= k;
   }
-  geo.setAttribute("color", new THREE.BufferAttribute(cs, 3));
+  c.needsUpdate = true;
   return geo;
 }
 const ico = (r, d) => new THREE.IcosahedronGeometry(r, d);
