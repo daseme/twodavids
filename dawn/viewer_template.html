@@ -622,12 +622,48 @@ const mottleAt = (fx, fy) => 0.88 + fbm(fx * 0.24, fy * 0.24, NSEED + 900) * 0.2
 // Vertex i sits at cell coordinate (i % RES) / SUB — fractional between cells,
 // which is the whole point.
 const vertMottle = new Float32Array(pos.count);
+const vertGrain = new Float32Array(pos.count);
+const vertForest = new Float32Array(pos.count);
+const vertClump = new Float32Array(pos.count);
+const vertElev = new Float32Array(pos.count);
+// Forest as a field rather than a per-cell flag, so a wood has an edge that
+// wanders across cells instead of stopping at one.
+const forestGrid = Array.from({length: G}, (_, x) => {
+  const c = new Float32Array(G);
+  for (let y = 0; y < G; y++) c[y] = DATA.biome[x][y] === 1 ? 1 : 0;
+  return c;
+});
+const elevGrid = Array.from({length: G}, (_, x) => {
+  const c = new Float32Array(G);
+  for (let y = 0; y < G; y++) c[y] = DATA.elevation[x][y] / 1000;
+  return c;
+});
 for (let i = 0; i < pos.count; i++) {
   const fx = (i % RES) / SUB, fy = Math.floor(i / RES) / SUB;
   pos.setXYZ(i, fx - G / 2, heightField(fx, fy), fy - G / 2);
   vertMottle[i] = mottleAt(fx, fy);
+  vertGrain[i] = 0.94 + fbm(fx * 2.9, fy * 2.9, NSEED + 4100) * 0.12;
+  vertForest[i] = bilinear(forestGrid, fx, fy);
+  vertClump[i] = fbm(fx * 1.15, fy * 1.15, NSEED + 4200);
+  vertElev[i] = bilinear(elevGrid, fx, fy);
 }
 terrainGeo.computeVertexNormals();
+// Slope per vertex, for rock on the steep faces. This is the one ground
+// feature the record genuinely implies: elevation is exported, and where it
+// changes fast enough, soil does not stay on it.
+//
+// Measured on the *coarse* surface, not the rendered normals. The detail noise
+// makes the fine surface locally steep everywhere, so reading rock off it put
+// scree across the whole map — what we want is landform steepness, which lives
+// in the cell heights underneath the decoration.
+const vertSlope = new Float32Array(pos.count);
+for (let i = 0; i < pos.count; i++) {
+  const fx = (i % RES) / SUB, fy = Math.floor(i / RES) / SUB;
+  const dx = bilinear(cellH, fx + 0.5, fy) - bilinear(cellH, fx - 0.5, fy);
+  const dy = bilinear(cellH, fx, fy + 0.5) - bilinear(cellH, fx, fy - 0.5);
+  const grad = Math.hypot(dx, dy);          // 1.0 is roughly 45 degrees
+  vertSlope[i] = Math.max(0, Math.min(1, (grad - 0.95) / 1.15));
+}
 // Baked relief: a hillshade from a fixed angle, multiplied into the ground
 // colour and independent of where the sun actually is. The real light swings
 // through the day and flattens the land twice a cycle when it comes from
@@ -800,8 +836,52 @@ function sampleTint(fx, fy, out) {
     out[c] = a + (b - a) * ty;
   }
 }
+// The ground the peoples painted: rock where the slope sheds soil, a wood with
+// a floor under its canopy, and ground worn bare where anyone has lived. Only
+// the last touches the record at all, and only by agreeing with it.
+const ROCK = new THREE.Color(0x8b8478), ROCK_D = new THREE.Color(0x6a655d);
+const UNDER = new THREE.Color(0x3d5330), CROWN = new THREE.Color(0x7f9d4f);
+const WORN = new THREE.Color(0x9a8867);
+const _sc1 = new THREE.Color(), _sc2 = new THREE.Color();
+// Wear accumulates over the whole run rather than tracking the current camp:
+// the ground remembers everyone who has stood on it, which is the same claim
+// the scars make — the mark outlasts the argument about it. Built on first
+// paint, because it needs sitesOf and that is declared further down.
+let vertWear = null;
+function buildWear() {
+  const cellWear = Array.from({length: G}, () => new Float32Array(G));
+  for (const s of sums) {
+    for (const cid of Object.keys(s.c)) {
+      const site = sitesOf(+cid, s.tick);
+      if (!site || !site.anchor) continue;
+      const [ax, ay] = site.anchor, r = 3;
+      for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) {
+        const x = Math.round(ax) + dx, y = Math.round(ay) + dy;
+        if (x < 0 || y < 0 || x >= G || y >= G || DATA.water[x][y]) continue;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d > r) continue;
+        cellWear[x][y] += 1 - d / r;
+      }
+    }
+  }
+  // Normalised against the most-trodden cell rather than accumulated to a cap.
+  // There are ~100 summaries times a dozen peoples, so any fixed increment
+  // saturates almost everywhere and paints the whole map worn — wear has to
+  // mean *more used than elsewhere*, which is a ratio, not a total.
+  let peak = 0;
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) peak = Math.max(peak, cellWear[x][y]);
+  if (peak > 0)
+    for (let x = 0; x < G; x++) for (let y = 0; y < G; y++)
+      cellWear[x][y] = Math.pow(cellWear[x][y] / peak, 1.6);
+  vertWear = new Float32Array(pos.count);
+  for (let i = 0; i < pos.count; i++) {
+    const fx = (i % RES) / SUB, fy = Math.floor(i / RES) / SUB;
+    vertWear[i] = bilinear(cellWear, fx, fy);
+  }
+}
 const _st = [0, 0, 0];
 function paintGround(tick) {
+  if (!vertWear) buildWear();
   const own = ownerAt(tick), sum = summaryAt(tick);
   const col = terrainGeo.attributes.color;
   const season = tick % 4, sg = SEASON_GROUND[season];
@@ -830,21 +910,39 @@ function paintGround(tick) {
           tintTmp.lerp(groundTint(me), Math.max(0, w));
         }
       }
-      tintTmp.setRGB(tintTmp.r * sg[0], tintTmp.g * sg[1], tintTmp.b * sg[2]);
-      if (season === 3) {
-        const snow = Math.max(0, Math.min(0.72, (DATA.elevation[x][y] / 1000 - 0.34) * 1.5));
-        if (snow > 0) tintTmp.lerp(snowTmp, snow);
-      }
     }
     cellTint[ci] = tintTmp.r; cellTint[ci + 1] = tintTmp.g; cellTint[ci + 2] = tintTmp.b;
   }
-  // Second pass: the fine mesh samples the cell tints along wandering
-  // coordinates, then takes its own per-vertex mottle and baked hillshade —
-  // both of which only mean anything at this resolution.
+  // Second pass, and where the ground stops being a flat fill. Everything that
+  // varies faster than a cell happens here: a wood's floor and its lit crowns,
+  // rock on the steep faces, the worn ground of long habitation. Season and
+  // snow moved down here too — mixing an unseasoned rock into an already
+  // seasoned tint would have been two different paints on one surface.
   for (let i = 0; i < pos.count; i++) {
     sampleTint(jitterX[i], jitterY[i], _st);
-    const k = vertMottle[i] * hillshade[i];
-    col.setXYZ(i, _st[0] * k, _st[1] * k, _st[2] * k);
+    _sc1.setRGB(_st[0], _st[1], _st[2]);
+    const f = vertForest[i];
+    if (f > 0.01) {
+      // Under the canopy it is dark and open; the crowns catch the light in
+      // clumps. One noise octave is the difference between a green field and
+      // something with a structure.
+      const lit = Math.max(0, Math.min(1, (vertClump[i] - 0.42) * 2.6));
+      _sc2.copy(UNDER).lerp(CROWN, lit);
+      _sc1.lerp(_sc2, f * 0.82);
+    }
+    const s = vertSlope[i];
+    if (s > 0) _sc1.lerp(vertClump[i] > 0.5 ? ROCK : ROCK_D, s * 0.88);
+    const w = vertWear[i];
+    if (w > 0.01) _sc1.lerp(WORN, Math.min(0.55, w));
+    _sc1.setRGB(_sc1.r * sg[0], _sc1.g * sg[1], _sc1.b * sg[2]);
+    if (season === 3) {
+      // Snow settles by height and spares the steep faces, which is most of
+      // what makes a snow line read as a line rather than a wash.
+      const snow = Math.max(0, Math.min(0.78, (vertElev[i] - 0.30) * 1.7)) * (1 - s * 0.75);
+      if (snow > 0) _sc1.lerp(snowTmp, snow);
+    }
+    const k = vertMottle[i] * vertGrain[i] * hillshade[i];
+    col.setXYZ(i, _sc1.r * k, _sc1.g * k, _sc1.b * k);
   }
   col.needsUpdate = true;
 }
