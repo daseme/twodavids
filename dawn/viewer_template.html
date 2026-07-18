@@ -348,6 +348,98 @@ const skyFill = new THREE.HemisphereLight(0x9fb4d8, 0x5b5340, 0.85);
 scene.add(sun, skyFill);
 const SKY_DAY = new THREE.Color(0x9fb4d8), SKY_NIGHT = new THREE.Color(0x2b3560);
 
+// ---- the sky: a painted dome, sun, moon and stars (§2 ambience) -------------
+// Ambience only. The brief's comets, eclipses and red moons are ANNALS omens —
+// portents that something happened — and this record asserts no such events, so
+// putting one overhead would be the viewer inventing history rather than
+// decorating its silence (§0). Sun, moon, stars and the light of the hour say
+// nothing about anybody, and are therefore fair game.
+//
+// Vertex colours on a coarse inverted sphere rather than a shader: it matches
+// how the rest of the file paints, and 561 vertices is nothing to recompute
+// when the hour turns.
+const DOME_R = G * 3.4;
+const domeGeo = new THREE.SphereGeometry(DOME_R, 32, 16);
+domeGeo.setAttribute("color",
+  new THREE.BufferAttribute(new Float32Array(domeGeo.attributes.position.count * 3), 3));
+const dome = new THREE.Mesh(domeGeo, new THREE.MeshBasicMaterial(
+  {vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false}));
+dome.renderOrder = -2;
+scene.add(dome);
+
+// Stars are deterministic from the seed, like everything else invented here.
+const starGeo = new THREE.BufferGeometry();
+{
+  const n = 520, xyz = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const u = hash2(i, 1, NSEED + 7001), w = hash2(i, 2, NSEED + 7002);
+    const th = u * Math.PI * 2, ph = Math.acos(w * 0.98);   // upper hemisphere
+    xyz[i * 3] = Math.sin(ph) * Math.cos(th) * DOME_R * 0.96;
+    xyz[i * 3 + 1] = Math.cos(ph) * DOME_R * 0.96;
+    xyz[i * 3 + 2] = Math.sin(ph) * Math.sin(th) * DOME_R * 0.96;
+  }
+  starGeo.setAttribute("position", new THREE.BufferAttribute(xyz, 3));
+}
+const stars = new THREE.Points(starGeo, new THREE.PointsMaterial(
+  {color: 0xd8dcf0, size: G * 0.022, sizeAttenuation: true,
+   transparent: true, opacity: 0, fog: false, depthWrite: false}));
+stars.renderOrder = -1;
+scene.add(stars);
+
+const discGeo = new THREE.CircleGeometry(G * 0.075, 24);
+const sunDisc = new THREE.Mesh(discGeo, new THREE.MeshBasicMaterial(
+  {color: 0xffe9b8, fog: false, depthWrite: false, transparent: true}));
+const moonDisc = new THREE.Mesh(discGeo, new THREE.MeshBasicMaterial(
+  {color: 0xdfe4f2, fog: false, depthWrite: false, transparent: true}));
+sunDisc.renderOrder = moonDisc.renderOrder = -1;
+scene.add(sunDisc, moonDisc);
+
+// Authored as hex, deliberately: THREE.Color converts hex from sRGB into the
+// renderer's working space, while raw floats written into a colour buffer are
+// taken as already-linear and come back lifted — which is how a midnight sky
+// ends up lavender. Everything below is mixed in working space, after that
+// conversion, and only then written to the attribute.
+const ZEN_DAY = new THREE.Color(0x4a6ea8), ZEN_NIGHT = new THREE.Color(0x0a0f2c);
+const HOR_DAY = new THREE.Color(0xd2c6a2), HOR_NIGHT = new THREE.Color(0x141833);
+const AMBER = new THREE.Color(0xe8873a);
+const _zen = new THREE.Color(), _hor = new THREE.Color();
+const _sunDir = new THREE.Vector3(), _vDir = new THREE.Vector3();
+const mix = (a, b, t) => a + (b - a) * t;
+let skyAt = -1;
+function updateSky(dayness, force) {
+  if (!force && Math.abs(dayness - skyAt) < 0.008) return;
+  skyAt = dayness;
+  // Warmth peaks when the sun is at the horizon, which is what makes dawn and
+  // dusk different from noon rather than merely dimmer.
+  const warmth = 1 - Math.abs(2 * dayness - 1);
+  _zen.copy(ZEN_NIGHT).lerp(ZEN_DAY, dayness);
+  _hor.copy(HOR_NIGHT).lerp(HOR_DAY, dayness).lerp(AMBER, warmth * 0.62);
+  const zen = [_zen.r, _zen.g, _zen.b], hor = [_hor.r, _hor.g, _hor.b];
+  _sunDir.copy(sun.position).normalize();
+  const p = domeGeo.attributes.position, c = domeGeo.attributes.color;
+  for (let i = 0; i < p.count; i++) {
+    _vDir.fromBufferAttribute(p, i).normalize();
+    const t = Math.max(0, Math.min(1, _vDir.y));
+    const k = t * t * (3 - 2 * t);
+    // A glow gathered around the sun, strongest when it sits low.
+    const glow = Math.pow(Math.max(0, _vDir.dot(_sunDir)), 6) * (0.35 + 0.5 * warmth) * dayness;
+    c.array[i * 3] = Math.min(1, mix(hor[0], zen[0], k) + glow * AMBER.r);
+    c.array[i * 3 + 1] = Math.min(1, mix(hor[1], zen[1], k) + glow * AMBER.g);
+    c.array[i * 3 + 2] = Math.min(1, mix(hor[2], zen[2], k) + glow * AMBER.b);
+  }
+  c.needsUpdate = true;
+  // The land fades into the horizon it actually has, so there is no seam.
+  scene.fog.color.copy(_hor);
+  scene.background.copy(_hor);
+  stars.material.opacity = Math.max(0, 1 - dayness * 2.2);
+  sunDisc.position.copy(_sunDir).multiplyScalar(DOME_R * 0.93);
+  moonDisc.position.copy(_sunDir).multiplyScalar(-DOME_R * 0.93);
+  sunDisc.material.opacity = Math.min(1, dayness * 3);
+  moonDisc.material.opacity = Math.max(0, 1 - dayness * 1.6);
+  sunDisc.visible = sunDisc.material.opacity > 0.01;
+  moonDisc.visible = moonDisc.material.opacity > 0.01;
+}
+
 // Terrain: one vertex per cell; height from elevation (mils, rendering-only —
 // it never drives culture, and it doesn't here either: pixels only).
 const HEIGHT = 7.5;
@@ -1904,8 +1996,11 @@ function frame(now) {
   directorStep(Math.floor(curTick), now);
   updateMotion(curTick, now);
   updateMargins(Math.floor(curTick));
-  // Day/night as a slow sun swing while playing (§2) — ambience, not record.
-  if (playing) {
+  // Day/night as a slow sun swing (§2) — ambience, not record. Driven from the
+  // clock whether or not it is running: paused at tick N the world now shows
+  // tick N's hour, so a still is reproducible from the bundle like everything
+  // else here, instead of keeping whatever light the last frame left behind.
+  {
     const th = (curTick % 8) / 8 * Math.PI * 2, dayness = 0.5 + 0.5 * Math.sin(th);
     sun.position.set(Math.cos(th) * G * 0.6,
                      G * (0.18 + 0.45 * dayness), Math.sin(th) * G * 0.4);
@@ -1914,8 +2009,9 @@ function frame(now) {
     // indigo, so silhouettes stay readable while the warmth leaves the land.
     skyFill.intensity = 0.30 + 0.62 * dayness;
     skyFill.color.copy(SKY_NIGHT).lerp(SKY_DAY, dayness);
-    scene.background.setHSL(0.09, 0.16, 0.045 + 0.035 * dayness);
-    scene.fog.color.copy(scene.background);
+    updateSky(dayness);
+    sunDisc.lookAt(camera.position);
+    moonDisc.lookAt(camera.position);
   }
   updateSettlements(curTick);
   camStep(dt);
