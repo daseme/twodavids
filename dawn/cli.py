@@ -46,7 +46,18 @@ def cmd_run(args: argparse.Namespace) -> None:
     eng = Engine(args.seed, Params(), out_dir=out, oracle=oracle)
     print(f"world of seed {args.seed}: "
           + ", ".join(c.name for c in eng.world.living()))
-    eng.run(args.ticks, progress=True)
+    try:
+        eng.run(args.ticks, progress=True)
+    except Exception as exc:
+        from .claude_oracle import PromotionUnavailable
+        if not isinstance(exc, PromotionUnavailable):
+            raise
+        # Stop with an intact, resumable prefix rather than a stub history
+        # wearing a promoted run's name.
+        eng.journal.flush()
+        eng.journal.close()
+        print(f"\nPROMOTION STOPPED: {exc}")
+        raise SystemExit(2)
     if oracle is not None:
         print(f"model deliberations: {oracle.calls} decided live, "
               f"{oracle.fallbacks} fell back to the stub")

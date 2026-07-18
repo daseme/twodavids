@@ -137,6 +137,44 @@ def test_viz_report_builds_from_run_dir(tmp_path):
     assert "unfolding" in watch
 
 
+def test_promotion_stops_rather_than_degrading():
+    """A promoted run must not quietly finish on stub decisions: billing and
+    auth failures are terminal, and a long streak of transient ones is too."""
+    from dawn.claude_oracle import ClaudeOracle, PromotionUnavailable
+    from dawn.oracle import Situation
+    from dawn.repertoire import primordial_stances
+
+    sit = Situation(kind="encounter", culture=0, culture_name="Aa",
+                    faction="0.0", faction_name="Bb", tick=7, detail={},
+                    menu=primordial_stances(), faction_values=np.zeros(8))
+    billing = RuntimeError("Error code: 400 - 'Your credit balance is too low'")
+
+    o = ClaudeOracle(1)
+    o._call = lambda *a, **k: (_ for _ in ()).throw(billing)
+    with pytest.raises(PromotionUnavailable):
+        o.deliberate("sketch", sit)          # terminal: stops on the first one
+
+    o = ClaudeOracle(1)
+    o._call = lambda *a, **k: (_ for _ in ()).throw(TimeoutError("blip"))
+    with pytest.raises(PromotionUnavailable):
+        for _ in range(60):
+            o.deliberate("sketch", sit)      # transient, but unbroken: stops
+
+    o = ClaudeOracle(1)                      # intermittent: rides it out
+    n = {"i": 0}
+
+    def flaky(sketch, situation):
+        n["i"] += 1
+        if n["i"] % 7:
+            raise TimeoutError("blip")
+        return ("affirm", "we hold to our ways")
+
+    o._call = flaky
+    for _ in range(60):
+        o.deliberate("sketch", sit)
+    assert o.calls == 8 and o.fallbacks == 52
+
+
 def test_resume_continues_an_interrupted_run(tmp_path):
     """Interruption insurance: seed + journal prefix + live oracle = a valid
     continued world. The prefix must survive byte-identical, and the resumed

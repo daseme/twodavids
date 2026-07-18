@@ -30,6 +30,28 @@ from .oracle import Situation, StubOracle, Utterance
 
 DEFAULT_PROMOTED = frozenset({"contradiction", "encounter", "ratchet_crisis", "recovery"})
 
+# How many consecutive stub fallbacks before a "promoted" run is no longer
+# one. Generous enough to ride out a rate-limit squall or a brief outage.
+MAX_FALLBACK_STREAK = 40
+
+# Substrings of the API's terminal complaints: billing and access problems
+# that no amount of waiting will resolve.
+_TERMINAL_TEXT = ("credit balance", "billing", "quota", "payment",
+                  "invalid x-api-key", "authentication_error",
+                  "permission_error")
+
+
+class PromotionUnavailable(RuntimeError):
+    """The model can no longer decide; the run stops instead of degrading."""
+
+
+def _is_terminal(exc: Exception) -> bool:
+    import anthropic
+    if isinstance(exc, (anthropic.AuthenticationError,
+                        anthropic.PermissionDeniedError)):
+        return True
+    return any(t in str(exc).lower() for t in _TERMINAL_TEXT)
+
 KIND_NOTES = {
     "contradiction": (
         "The gap has grown too wide to ignore: what the way of living promises "
@@ -76,6 +98,7 @@ class ClaudeOracle:
         self.stub = StubOracle(self.rng)
         self.calls = 0
         self.fallbacks = 0
+        self._streak = 0
         self._client = None
 
     def _get_client(self):
@@ -116,9 +139,29 @@ class ClaudeOracle:
         menu_ids = {s.eid for s in situation.menu}
         try:
             stance_id, argument = self._call(sketch, situation)
-        except Exception:
+        except Exception as exc:
+            # A promoted run that quietly finishes on stub decisions is worse
+            # than one that stops: the journal looks complete and is not the
+            # experiment. Credit exhaustion, bad keys and revoked access are
+            # terminal — they will not fix themselves mid-run — so they end
+            # the run and leave a resumable prefix. Transient failures still
+            # fall back, but a long unbroken streak of them is terminal too.
+            if _is_terminal(exc):
+                raise PromotionUnavailable(
+                    f"promotion cannot continue at tick {situation.tick}: "
+                    f"{type(exc).__name__}: {exc}. The journal so far is "
+                    f"intact — resume with: dawn run --resume") from exc
             self.fallbacks += 1
+            self._streak += 1
+            if self._streak >= MAX_FALLBACK_STREAK:
+                raise PromotionUnavailable(
+                    f"{self._streak} consecutive fallbacks ending at tick "
+                    f"{situation.tick} (last: {type(exc).__name__}: {exc}) — "
+                    f"stopping rather than writing a stub history under a "
+                    f"promoted run's name. Resume with: dawn run --resume"
+                ) from exc
             return local_stub.deliberate(sketch, situation)
+        self._streak = 0
         if stance_id not in menu_ids or not argument:
             self.fallbacks += 1
             return local_stub.deliberate(sketch, situation)
