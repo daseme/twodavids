@@ -361,6 +361,8 @@ function summaryAt(tick) {
 // ---- scene ------------------------------------------------------------------
 const stage = document.getElementById("stage");
 const renderer = new THREE.WebGLRenderer({antialias: true});
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 stage.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
@@ -374,6 +376,23 @@ const camera = new THREE.PerspectiveCamera(46, 1, 0.1, G * 8);
 // its shadowed face to change hue, not just dim.
 const sun = new THREE.DirectionalLight(0xffe3b0, 2.35);
 sun.position.set(G * 0.62, G * 0.46, G * 0.30);
+// Shadows: the thing most responsible for objects sitting *on* the ground
+// rather than hovering in front of it. One map, no cascades — the frustum is
+// retargeted to the camera each frame instead, and dropped entirely from
+// altitude where it would be spent on shadows too small to resolve.
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.near = 1;
+sun.shadow.camera.far = G * 4;
+sun.shadow.bias = -0.0006;
+sun.shadow.normalBias = 0.06;
+// The world is 48 cells across and fixed, so one ortho box covers it and there
+// is nothing to track: about 0.027 units per texel, which resolves a hut.
+{
+  const R = G * 0.58, c = sun.shadow.camera;
+  c.left = -R; c.right = R; c.top = R; c.bottom = -R;
+  c.updateProjectionMatrix();
+}
 const skyFill = new THREE.HemisphereLight(0x9fb4d8, 0x5b5340, 0.85);
 scene.add(sun, skyFill);
 const SKY_DAY = new THREE.Color(0x9fb4d8), SKY_NIGHT = new THREE.Color(0x2b3560);
@@ -470,10 +489,23 @@ function updateSky(dayness, force) {
   moonDisc.visible = moonDisc.material.opacity > 0.01;
 }
 
-// Terrain: one vertex per cell; height from elevation (mils, rendering-only —
-// it never drives culture, and it doesn't here either: pixels only).
+// Terrain: height from elevation (mils, rendering-only — it never drives
+// culture, and it doesn't here either: pixels only).
+//
+// The render mesh is subdivided SUB times per cell. Rendering one vertex per
+// cell meant the whole world was 47x47 quads, and no amount of shading saves a
+// surface with nothing in it — the earlier detail noise was evaluated per cell,
+// at exactly the frequency of the data, so it could only make a coarse surface
+// slightly bumpier. Detail has to live *between* cells to exist at all, which
+// is precisely where the record is silent and the elaboration rule lets us
+// work (§0). The data grid is untouched; only the sampling of it gets finer.
 const HEIGHT = 7.5;
-const terrainGeo = new THREE.PlaneGeometry(G, G, G - 1, G - 1);
+// Six samples per cell. The detail octaves below run to ~3 cycles per cell, and
+// at SUB=4 the finer one sat on the sampling limit — it aliased instead of
+// reading as detail. Resolution has to lead the noise, not match it.
+const SUB = 6;
+const RES = (G - 1) * SUB + 1;
+const terrainGeo = new THREE.PlaneGeometry(G, G, RES - 1, RES - 1);
 terrainGeo.rotateX(-Math.PI / 2);
 const pos = terrainGeo.attributes.position;
 // Distance in cells to the nearest water, and to the nearest land — a two-pass
@@ -548,19 +580,52 @@ const relief = Array.from({length: G}, (_, x) => {
   }
   return col;
 });
-const heightAt = (x, y) => baseHeight(x, y) + (relief[x] ? relief[x][y] : 0);
-// Painterly mottle: broad tonal drift across the ground so a biome reads as a
-// painted mass rather than one flat fill. Precomputed — paintGround runs on
-// every tick change and has no business evaluating noise per vertex.
-const mottle = Array.from({length: G}, (_, x) => {
+// The cell-resolution surface: what the record says, plus the coarse relief.
+// Everything finer is interpolated off this and is invention.
+const cellH = Array.from({length: G}, (_, x) => {
   const col = new Float32Array(G);
-  for (let y = 0; y < G; y++)
-    col[y] = 0.88 + fbm(x * 0.24, y * 0.24, NSEED + 900) * 0.26;
+  for (let y = 0; y < G; y++) col[y] = baseHeight(x, y) + relief[x][y];
   return col;
 });
+// How much sub-cell detail a place may carry: none in water or on the bank, so
+// the shoreline the record asserts is never moved by decoration, full inland.
+const detailAmp = Array.from({length: G}, (_, x) => {
+  const col = new Float32Array(G);
+  for (let y = 0; y < G; y++)
+    col[y] = DATA.water[x][y] ? 0
+           : Math.max(0, Math.min(1, (distWater[x][y] - 1) / 2));
+  return col;
+});
+const bilinear = (grid, fx, fy) => {
+  const x0 = Math.max(0, Math.min(G - 1, Math.floor(fx)));
+  const y0 = Math.max(0, Math.min(G - 1, Math.floor(fy)));
+  const x1 = Math.min(G - 1, x0 + 1), y1 = Math.min(G - 1, y0 + 1);
+  const tx = Math.max(0, Math.min(1, fx - x0)), ty = Math.max(0, Math.min(1, fy - y0));
+  const a = grid[x0][y0] + (grid[x1][y0] - grid[x0][y0]) * tx;
+  const b = grid[x0][y1] + (grid[x1][y1] - grid[x0][y1]) * tx;
+  return a + (b - a) * ty;
+};
+// Two octaves above the data grid — this is the detail that was missing, and
+// it only ever moves the surface where detailAmp permits.
+function heightField(fx, fy) {
+  const base = bilinear(cellH, fx, fy), amp = bilinear(detailAmp, fx, fy);
+  if (amp <= 0) return base;
+  const d = (fbm(fx * 1.35, fy * 1.35, NSEED + 2100) - 0.5) * 0.62
+          + (fbm(fx * 3.10, fy * 3.10, NSEED + 2200) - 0.5) * 0.24;
+  return base + d * amp;
+}
+// heightAt is heightField sampled at a node, so everything placed on the world
+// stands on the surface actually drawn rather than on the coarse one under it.
+const heightAt = (x, y) => heightField(x, y);
+// Painterly mottle, now evaluated per render vertex rather than per cell.
+const mottleAt = (fx, fy) => 0.88 + fbm(fx * 0.24, fy * 0.24, NSEED + 900) * 0.26;
+// Vertex i sits at cell coordinate (i % RES) / SUB — fractional between cells,
+// which is the whole point.
+const vertMottle = new Float32Array(pos.count);
 for (let i = 0; i < pos.count; i++) {
-  const x = i % G, y = Math.floor(i / G);
-  pos.setXYZ(i, x - G / 2, heightAt(x, y), y - G / 2);
+  const fx = (i % RES) / SUB, fy = Math.floor(i / RES) / SUB;
+  pos.setXYZ(i, fx - G / 2, heightField(fx, fy), fy - G / 2);
+  vertMottle[i] = mottleAt(fx, fy);
 }
 terrainGeo.computeVertexNormals();
 // Baked relief: a hillshade from a fixed angle, multiplied into the ground
@@ -581,6 +646,7 @@ terrainGeo.setAttribute("color",
   new THREE.BufferAttribute(new Float32Array(pos.count * 3), 3));
 const terrain = new THREE.Mesh(terrainGeo,
   new THREE.MeshLambertMaterial({vertexColors: true}));
+terrain.receiveShadow = true;
 scene.add(terrain);
 
 // The skirt: without it the map is a plate floating on the sky, which the dark
@@ -707,12 +773,40 @@ const tintTmp = new THREE.Color(), snowTmp = new THREE.Color(0.91, 0.93, 0.96);
 // elevation, which is the cheapest honest version of "on upward-facing terrain".
 const SEASON_GROUND = [[1.02, 1.07, 0.95], [1.07, 1.02, 0.88],
                        [1.10, 0.97, 0.84], [0.94, 0.97, 1.05]];
+// Painted in two passes. The tint is decided once per *cell* — that is the
+// resolution the record actually has, and the neighbourhood vote below is
+// defined on cells — then sampled onto the much finer render mesh. Deciding it
+// per render vertex would be sixteen times the work for no more information.
+const cellTint = new Float32Array(G * G * 3);
+// Sampling coordinates wander, so a biome or a frontier no longer changes along
+// a straight cell edge. This is the same licence as the shoreline: which cell
+// holds what is untouched, only where the boundary falls inside it is invented.
+const jitterX = new Float32Array(pos.count), jitterY = new Float32Array(pos.count);
+for (let i = 0; i < pos.count; i++) {
+  const fx = (i % RES) / SUB, fy = Math.floor(i / RES) / SUB;
+  jitterX[i] = fx + (fbm(fx * 0.62, fy * 0.62, NSEED + 3100) - 0.5) * 1.15;
+  jitterY[i] = fy + (fbm(fx * 0.62 + 5.1, fy * 0.62 + 9.3, NSEED + 3200) - 0.5) * 1.15;
+}
+function sampleTint(fx, fy, out) {
+  const x0 = Math.max(0, Math.min(G - 1, Math.floor(fx)));
+  const y0 = Math.max(0, Math.min(G - 1, Math.floor(fy)));
+  const x1 = Math.min(G - 1, x0 + 1), y1 = Math.min(G - 1, y0 + 1);
+  const tx = Math.max(0, Math.min(1, fx - x0)), ty = Math.max(0, Math.min(1, fy - y0));
+  for (let c = 0; c < 3; c++) {
+    const a = cellTint[(x0 * G + y0) * 3 + c]
+            + (cellTint[(x1 * G + y0) * 3 + c] - cellTint[(x0 * G + y0) * 3 + c]) * tx;
+    const b = cellTint[(x0 * G + y1) * 3 + c]
+            + (cellTint[(x1 * G + y1) * 3 + c] - cellTint[(x0 * G + y1) * 3 + c]) * tx;
+    out[c] = a + (b - a) * ty;
+  }
+}
+const _st = [0, 0, 0];
 function paintGround(tick) {
   const own = ownerAt(tick), sum = summaryAt(tick);
   const col = terrainGeo.attributes.color;
   const season = tick % 4, sg = SEASON_GROUND[season];
-  for (let i = 0; i < pos.count; i++) {
-    const x = i % G, y = Math.floor(i / G);
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
+    const ci = (x * G + y) * 3;
     tintTmp.copy(BIOME_3D[DATA.biome[x][y]]);
     if (DATA.water[x][y]) { tintTmp.multiplyScalar(0.55); }
     else {
@@ -727,21 +821,30 @@ function paintGround(tick) {
           if (nx < 0 || ny < 0 || nx >= G || ny >= G || DATA.water[nx][ny]) continue;
           n++; if (own[nx][ny] === me) same++;
         }
-        if (archaeo && attestation(me, sum.tick) === 0) { col.setXYZ(i, tintTmp.r, tintTmp.g, tintTmp.b); continue; }
-        const closed = ((sum.c[me] || {}).mean || [])[3] || 0;   // closed/open axis
-        const edge = n ? same / n : 1;
-        const sharp = 0.35 + 0.45 * Math.max(0, closed);  // closed ⇒ crisp frontier
-        const w = 0.30 * Math.min(1, edge < 1 ? (edge - 0.3) / 0.7 * (1 - sharp) + sharp * (edge > 0.6 ? 1 : 0) : 1);
-        tintTmp.lerp(groundTint(me), Math.max(0, w));
+        const unattested = archaeo && attestation(me, sum.tick) === 0;
+        if (!unattested) {
+          const closed = ((sum.c[me] || {}).mean || [])[3] || 0;   // closed/open axis
+          const edge = n ? same / n : 1;
+          const sharp = 0.35 + 0.45 * Math.max(0, closed);  // closed ⇒ crisp frontier
+          const w = 0.30 * Math.min(1, edge < 1 ? (edge - 0.3) / 0.7 * (1 - sharp) + sharp * (edge > 0.6 ? 1 : 0) : 1);
+          tintTmp.lerp(groundTint(me), Math.max(0, w));
+        }
       }
-      const k = mottle[x][y] * hillshade[i];
-      tintTmp.setRGB(tintTmp.r * sg[0] * k, tintTmp.g * sg[1] * k, tintTmp.b * sg[2] * k);
+      tintTmp.setRGB(tintTmp.r * sg[0], tintTmp.g * sg[1], tintTmp.b * sg[2]);
       if (season === 3) {
         const snow = Math.max(0, Math.min(0.72, (DATA.elevation[x][y] / 1000 - 0.34) * 1.5));
         if (snow > 0) tintTmp.lerp(snowTmp, snow);
       }
     }
-    col.setXYZ(i, tintTmp.r, tintTmp.g, tintTmp.b);
+    cellTint[ci] = tintTmp.r; cellTint[ci + 1] = tintTmp.g; cellTint[ci + 2] = tintTmp.b;
+  }
+  // Second pass: the fine mesh samples the cell tints along wandering
+  // coordinates, then takes its own per-vertex mottle and baked hillshade —
+  // both of which only mean anything at this resolution.
+  for (let i = 0; i < pos.count; i++) {
+    sampleTint(jitterX[i], jitterY[i], _st);
+    const k = vertMottle[i] * hillshade[i];
+    col.setXYZ(i, _st[0] * k, _st[1] * k, _st[2] * k);
   }
   col.needsUpdate = true;
 }
@@ -1357,6 +1460,7 @@ function placeSlot(g, cid, id, spot, x, y, scale, now) {
   let slot = g.slots.get(id);
   if (!slot) {
     const m = new THREE.Mesh(GEO[spot.kind], MAT.pale);
+    m.castShadow = true;
     g.group.add(m);
     slot = {mesh: m, kind: null};
     g.slots.set(id, slot);
@@ -1568,6 +1672,7 @@ function plantForest() {
     });
     leaves.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cols[0]), 3);
     trunks.frustumCulled = false; leaves.frustumCulled = false;
+    trunks.castShadow = leaves.castShadow = true;
     scene.add(trunks, leaves);
     forest[kind] = {trunks, leaves, cols, full, bare, n: list.length};
   }
@@ -2185,8 +2290,12 @@ function frame(now) {
   // else here, instead of keeping whatever light the last frame left behind.
   {
     const th = (curTick % 8) / 8 * Math.PI * 2, dayness = 0.5 + 0.5 * Math.sin(th);
+    // Direction is all a directional light uses, so the position is pushed well
+    // outside the world: at the old radius the shadow camera's near plane cut
+    // through the terrain when the sun sat low.
     sun.position.set(Math.cos(th) * G * 0.6,
-                     G * (0.18 + 0.45 * dayness), Math.sin(th) * G * 0.4);
+                     G * (0.18 + 0.45 * dayness), Math.sin(th) * G * 0.4)
+       .normalize().multiplyScalar(G * 1.9);
     sun.intensity = 1.1 + 1.7 * dayness;
     // Night is a painted nocturne, not an unlit scene: the fill drops and goes
     // indigo, so silhouettes stay readable while the warmth leaves the land.
