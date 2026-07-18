@@ -16,7 +16,8 @@ build-backend = "setuptools.build_meta"
 include = ["dawn*"]
 
 [tool.setuptools.package-data]
-dawn = ["viz_template.html", "watch_template.html"]
+dawn = ["viz_template.html", "watch_template.html", "viewer_template.html",
+        "vendor/three.module.min.js"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

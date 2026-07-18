@@ -1,0 +1,531 @@
+<!-- dawn viewer — the Phase 4 replay viewer (VIEWER.md), scaffold.
+
+A replay client: this file consumes the run bundle baked into it and renders
+a finished history. Journal → pixels; nothing here feeds back into the sim.
+All invented geometry (site plans, tents, banners) is deterministic from
+bundle + seed and evidence-free: it decorates what the record is silent
+about and never contradicts it (the elaboration rule, VIEWER.md §0).
+
+Three.js is vendored inline below (no CDN — offline use, artifact CSP, and
+twenty-year replayability). Scaffold status per system is marked [SCAFFOLD]
+where the full treatment in VIEWER.md §§2–4 is still to come. -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dawn — the annals, replayed</title>
+<style>
+  :root {
+    --parchment: #efe4c9; --parchment-2: #e6d8b6; --ink: #2e2417;
+    --ink-2: #6d5c41; --rule: #c9b78e; --accent: #8a3324;
+  }
+  * { margin: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; background: #191510;
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    color: var(--ink); }
+  #stage { position: absolute; inset: 0; }
+  .panel { position: absolute; background: var(--parchment);
+    border: 1px solid var(--rule); border-radius: 3px;
+    box-shadow: 0 2px 14px rgba(0,0,0,0.45), inset 0 0 40px rgba(160,130,70,0.12); }
+  #masthead { top: 14px; left: 14px; padding: 10px 16px 8px; }
+  #masthead h1 { font-size: 17px; font-weight: 600; letter-spacing: 0.02em; }
+  #masthead .sub { font-size: 11.5px; color: var(--ink-2); margin-top: 2px;
+    font-style: italic; }
+  #clock { top: 14px; right: 14px; padding: 8px 16px; text-align: right; }
+  #clock .year { font-size: 19px; font-variant-numeric: tabular-nums; }
+  #clock .season { font-size: 11px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--ink-2); }
+  #beat { right: 14px; top: 84px; width: 320px; padding: 12px 15px;
+    display: none; }
+  #beat.on { display: block; }
+  #beat .kind { font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--accent); }
+  #beat .quote { font-size: 13.5px; line-height: 1.45; margin: 7px 0; }
+  #beat .cite { font-size: 11px; color: var(--ink-2); font-style: italic;
+    border-top: 1px solid var(--rule); padding-top: 6px; }
+  #bar { left: 50%; transform: translateX(-50%); bottom: 14px; width: min(760px, 92vw);
+    padding: 9px 14px; display: flex; gap: 12px; align-items: center; }
+  #bar button { font: inherit; font-size: 12px; background: var(--parchment-2);
+    color: var(--ink); border: 1px solid var(--rule); border-radius: 3px;
+    padding: 3px 12px; cursor: pointer; }
+  #bar button:hover { background: #dcc998; }
+  #scrub { flex: 1; accent-color: var(--accent); }
+  #speed { font-size: 11px; color: var(--ink-2); min-width: 52px;
+    text-align: right; font-variant-numeric: tabular-nums; }
+  #help { position: absolute; left: 14px; bottom: 14px; font-size: 10.5px;
+    color: #a2916f; text-shadow: 0 1px 2px #000; max-width: 195px; }
+  #legend { left: 14px; top: 84px; max-width: 190px; padding: 9px 13px;
+    font-size: 12px; max-height: 50vh; overflow-y: auto; }
+  #legend .p { display: flex; gap: 7px; align-items: baseline; cursor: pointer;
+    padding: 1px 0; }
+  #legend .p:hover { color: var(--accent); }
+  #legend .p .sw { width: 9px; height: 9px; border-radius: 50%; flex: none;
+    align-self: center; }
+  #legend .p.gone { opacity: 0.4; text-decoration: line-through; }
+</style>
+
+<div id="stage"></div>
+<div class="panel" id="masthead">
+  <h1 id="title">The Annals</h1>
+  <div class="sub" id="subtitle"></div>
+</div>
+<div class="panel" id="clock">
+  <div class="year" id="year">year 0</div>
+  <div class="season" id="season">spring</div>
+</div>
+<div class="panel" id="legend"></div>
+<div class="panel" id="beat">
+  <div class="kind" id="beat-kind"></div>
+  <div class="quote" id="beat-quote"></div>
+  <div class="cite" id="beat-cite"></div>
+</div>
+<div class="panel" id="bar">
+  <button id="play">play</button>
+  <input id="scrub" type="range" min="0" value="0" step="1">
+  <div id="speed">6 t/s</div>
+</div>
+<div id="help">drag orbit · wheel zoom · click a name to visit · space
+  play/pause · [ ] speed — the viewer watches; the only causal verb is argue</div>
+
+<script id="three-core-src" type="text/plain">__THREE_CORE_JS__</script>
+<script id="three-src" type="text/plain">__THREE_MODULE_JS__</script>
+<script id="bundle" type="application/json">__DATA__</script>
+<script type="module">
+// Vendored modules, imported via blob so this file stays single and offline.
+// The split r178 build's relative import is rewired to the core blob's URL.
+const blobURL = (src) =>
+  URL.createObjectURL(new Blob([src], {type: "text/javascript"}));
+const coreURL = blobURL(document.getElementById("three-core-src").textContent);
+const THREE = await import(blobURL(
+  document.getElementById("three-src").textContent
+    .replaceAll("./three.core.min.js", coreURL)));
+const DATA = JSON.parse(document.getElementById("bundle").textContent);
+
+// ---- shared conventions (identical to the 2D watch mode) --------------------
+const SEASONS = ["spring", "summer", "autumn", "winter"];
+const BIOME_TINT = [[214,205,159],[157,185,138],[181,203,150],
+                    [169,196,206],[192,188,176],[228,215,174]];
+// axes: 0 rank 1 display 2 nomadism 3 closed 4 accumulation 5 command 6 sacred 7 violence
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let x = Math.imul(a ^ a >>> 15, 1 | a);
+    x = x + Math.imul(x ^ x >>> 7, 61 | x) ^ x;
+    return ((x ^ x >>> 14) >>> 0) / 4294967296;
+  };
+}
+function hueOf(cid) { return (cid * 137.508) % 360; }
+function colorOf(cid, l = 0.5) {
+  return new THREE.Color().setHSL(hueOf(cid) / 360, 0.5, l);
+}
+
+const G = DATA.grid, T = DATA.ticks;
+
+// ---- territory reconstruction: owner0 + deltas ------------------------------
+const deltas = DATA.deltas.slice().sort((a, b) => a.tick - b.tick);
+let owner = null, appliedTo = -1;
+function ownerAt(tick) {
+  if (owner === null || tick < appliedTo) {
+    owner = DATA.owner0.map(r => r.slice());
+    appliedTo = -1;
+  }
+  for (const d of deltas) {
+    if (d.tick > tick) break;
+    if (d.tick <= appliedTo) continue;
+    for (const [x, y] of d.cells) owner[x][y] = d.to;
+  }
+  appliedTo = tick;
+  return owner;
+}
+
+// ---- summaries: the interpolation source (render/sim decoupling, §2) --------
+const sums = DATA.summaries;
+function summaryAt(tick) {
+  let lo = 0, hi = sums.length - 1;
+  while (lo < hi) { const m = (lo + hi + 1) >> 1;
+    if (sums[m].tick <= tick) lo = m; else hi = m - 1; }
+  return sums[lo];
+}
+
+// ---- scene ------------------------------------------------------------------
+const stage = document.getElementById("stage");
+const renderer = new THREE.WebGLRenderer({antialias: true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+stage.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x191510);
+scene.fog = new THREE.Fog(0x191510, G * 1.4, G * 3.2);
+const camera = new THREE.PerspectiveCamera(46, 1, 0.1, G * 8);
+
+const sun = new THREE.DirectionalLight(0xfff2dc, 2.6);
+sun.position.set(G * 0.5, G * 0.7, G * 0.3);
+scene.add(sun, new THREE.AmbientLight(0x8a7f6a, 1.1));
+
+// Terrain: one vertex per cell; height from elevation (mils, rendering-only —
+// it never drives culture, and it doesn't here either: pixels only).
+const HEIGHT = 7.5;
+const terrainGeo = new THREE.PlaneGeometry(G, G, G - 1, G - 1);
+terrainGeo.rotateX(-Math.PI / 2);
+const pos = terrainGeo.attributes.position;
+const heightAt = (x, y) =>
+  DATA.water[x][y] ? -0.06 : (DATA.elevation[x][y] / 1000) * HEIGHT;
+for (let i = 0; i < pos.count; i++) {
+  const x = i % G, y = Math.floor(i / G);
+  pos.setXYZ(i, x - G / 2, heightAt(x, y), y - G / 2);
+}
+terrainGeo.computeVertexNormals();
+terrainGeo.setAttribute("color",
+  new THREE.BufferAttribute(new Float32Array(pos.count * 3), 3));
+const terrain = new THREE.Mesh(terrainGeo,
+  new THREE.MeshLambertMaterial({vertexColors: true}));
+scene.add(terrain);
+
+// Water sheet + rivers.
+const water = new THREE.Mesh(new THREE.PlaneGeometry(G, G),
+  new THREE.MeshLambertMaterial({color: 0x39506b, transparent: true, opacity: 0.92}));
+water.rotateX(-Math.PI / 2); water.position.y = -0.03;
+scene.add(water);
+{
+  const pts = [];
+  for (const [x1, y1, x2, y2] of DATA.rivers)
+    pts.push(new THREE.Vector3(x1 - G / 2, heightAt(x1, y1) + 0.05, y1 - G / 2),
+             new THREE.Vector3(x2 - G / 2, heightAt(x2, y2) + 0.05, y2 - G / 2));
+  scene.add(new THREE.LineSegments(
+    new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({color: 0x5b7893})));
+}
+
+// ---- borders are not facts (§3.1) -------------------------------------------
+// Membership renders as a gradient tint over the ground. Blur radius per cell
+// comes from the closed/open axis of the local owner: open peoples bleed,
+// closed ones crisp. [SCAFFOLD] v1 is a fixed-kernel blend weighted by the
+// owner's closed value; dead hospitality routes (scars) don't yet sharpen edges.
+const tintTmp = new THREE.Color();
+function paintGround(tick) {
+  const own = ownerAt(tick), sum = summaryAt(tick);
+  const col = terrainGeo.attributes.color;
+  for (let i = 0; i < pos.count; i++) {
+    const x = i % G, y = Math.floor(i / G);
+    const [r, g, b] = BIOME_TINT[DATA.biome[x][y]];
+    tintTmp.setRGB(r / 255, g / 255, b / 255);
+    if (DATA.water[x][y]) { tintTmp.multiplyScalar(0.55); }
+    else {
+      // Neighborhood vote: how much of the 3x3 patch shares my owner. A cell
+      // deep inside territory tints fully; a frontier cell tints faintly —
+      // and *how* faintly scales with the owner's openness.
+      const me = own[x][y];
+      if (me >= 0) {
+        let same = 0, n = 0;
+        for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+          const nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= G || ny >= G || DATA.water[nx][ny]) continue;
+          n++; if (own[nx][ny] === me) same++;
+        }
+        const closed = ((sum.c[me] || {}).mean || [])[3] || 0;   // closed/open axis
+        const edge = n ? same / n : 1;
+        const sharp = 0.35 + 0.45 * Math.max(0, closed);  // closed ⇒ crisp frontier
+        const w = 0.30 * Math.min(1, edge < 1 ? (edge - 0.3) / 0.7 * (1 - sharp) + sharp * (edge > 0.6 ? 1 : 0) : 1);
+        tintTmp.lerp(colorOf(me, 0.45), Math.max(0, w));
+      }
+    }
+    col.setXYZ(i, tintTmp.r, tintTmp.g, tintTmp.b);
+  }
+  col.needsUpdate = true;
+}
+
+// ---- sites: the elaboration rule in action (§0, §3.4) -----------------------
+// The sim has no settlement coordinates. We invent them: deterministic from
+// seed + culture id, evidence-free. Winter ground = best cell (wet-adjacent,
+// central); summer camps = seeded scatter inside the territory.
+const siteCache = {};
+function sitesOf(cid, tick) {
+  const key = cid + "@" + appliedTo;
+  if (siteCache[key]) return siteCache[key];
+  const own = ownerAt(tick), cells = [];
+  let cx = 0, cy = 0;
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++)
+    if (own[x][y] === cid && !DATA.water[x][y]) { cells.push([x, y]); cx += x; cy += y; }
+  if (!cells.length) return null;
+  cx /= cells.length; cy /= cells.length;
+  const wet = (x, y) => {
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+      const nx = x + dx, ny = y + dy;
+      if (nx >= 0 && ny >= 0 && nx < G && ny < G && DATA.water[nx][ny]) return true;
+    }
+    return false;
+  };
+  let anchor = cells[0], best = -1e9;
+  for (const [x, y] of cells) {
+    const s = (wet(x, y) ? 2.2 : 0) - 0.06 * Math.hypot(x - cx, y - cy) - (x * G + y) * 1e-6;
+    if (s > best) { best = s; anchor = [x, y]; }
+  }
+  const r = mulberry32((DATA.seed * 2654435761 ^ cid * 97) | 0);
+  const camps = [];
+  const pool = cells.slice();
+  while (camps.length < 5 && pool.length)
+    camps.push(pool.splice(Math.floor(r() * pool.length), 1)[0]);
+  return (siteCache[key] = {anchor, camps});
+}
+
+// ---- settlements: visual vocabulary must be earned (§3.2, §3.3) -------------
+// One Group per living culture, rebuilt when tick/season/config changes.
+// Aggregated seasons assemble concentric around the lodge; dispersed seasons
+// scatter to the camps — so a ratchet is visible as the disassembly that
+// never comes (§3.4, the single best shot). During the two render-seconds
+// after a season flip, positions lerp: houses struck, the camp dispersing.
+// [SCAFFOLD] rank⇒roofline-variance and display⇒banners are wired; the other
+// six axis→parameter rows of §3.3, LOD bubble band, palisades-from-violence,
+// and heraldic charge repulsion (§3.5) are TODO.
+const TENT = new THREE.ConeGeometry(0.16, 0.3, 5);
+const HUT = new THREE.BoxGeometry(0.22, 0.2, 0.22);
+const LODGE = new THREE.BoxGeometry(0.55, 0.42, 0.55);
+const BANNER = new THREE.PlaneGeometry(0.1, 0.26);
+const groups = new Map();   // cid -> {group, key}
+const groundY = (x, y) => heightAt(Math.round(x), Math.round(y));
+const toWorld = (x, y, out) => out.set(x - G / 2, Math.max(0, groundY(x, y)), y - G / 2);
+
+function layoutOf(cid, tick, sum) {
+  const c = sum.c[cid];
+  if (!c || !c.cfg || !DATA.configs[c.cfg]) return null;
+  const cfg = DATA.configs[c.cfg];
+  const season = Math.floor(tick) % 4;
+  const st = DATA.structures[cfg.seasons[season]] || {};
+  const sites = sitesOf(cid, tick);
+  if (!sites) return null;
+  const r = mulberry32((DATA.seed ^ cid * 7919) | 0);
+  const mean = c.mean || [];
+  const n = Math.max(3, Math.min(14, Math.round((c.pop || 60) / 22)));
+  const spots = [];
+  if (st.settlement === "aggregated") {
+    // Concentric winter form; rank axis spreads the rooflines (§3.3 row 1).
+    const [ax, ay] = sites.anchor;
+    if (st.authority && st.authority !== "none")
+      spots.push({x: ax, y: ay, kind: "lodge", s: 1});
+    for (let i = 0; i < n; i++) {
+      const th = r() * Math.PI * 2, rad = 0.55 + r() * 1.15;
+      const rank = Math.max(0, mean[0] || 0);
+      spots.push({x: ax + Math.cos(th) * rad, y: ay + Math.sin(th) * rad,
+                  kind: "hut", s: 0.7 + rank * (r() - 0.35) * 1.3});
+    }
+  } else {
+    // Dispersed summer form: even, unplanned scatter across the camps.
+    for (let i = 0; i < n; i++) {
+      const [cxx, cyy] = sites.camps[i % sites.camps.length];
+      spots.push({x: cxx + (r() - 0.5) * 0.9, y: cyy + (r() - 0.5) * 0.9,
+                  kind: "tent", s: 0.85 + r() * 0.3});
+    }
+  }
+  // display axis ⇒ banners (§3.3 row 2), gated on salience when present.
+  const sal = c.sal || [];
+  if ((mean[1] || 0) > 0.15 && (sal[1] === undefined || sal[1] > 0.3))
+    spots.push({x: sites.anchor[0], y: sites.anchor[1] - 0.4, kind: "banner", s: 1});
+  return {spots, key: `${c.cfg}|${Math.floor(tick) % 4}|${appliedTo}|${n}`};
+}
+
+const v3 = new THREE.Vector3();
+function buildGroup(cid, layout) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshLambertMaterial({color: colorOf(cid, 0.42)});
+  const dark = new THREE.MeshLambertMaterial({color: colorOf(cid, 0.28)});
+  for (const s of layout.spots) {
+    const geo = s.kind === "lodge" ? LODGE : s.kind === "tent" ? TENT
+              : s.kind === "banner" ? BANNER : HUT;
+    const m = new THREE.Mesh(geo, s.kind === "lodge" ? dark : mat);
+    m.scale.setScalar(s.s);
+    toWorld(s.x, s.y, m.position);
+    m.position.y += s.kind === "banner" ? 0.55 : 0.1 * s.s;
+    if (s.kind === "banner") m.rotation.y = Math.PI / 4;
+    g.add(m);
+    // Assembly/disassembly: new spots grow in; the lerp is per-mesh so a
+    // seek mid-transition still lands deterministically.
+    m.userData.t0 = performance.now();
+  }
+  return g;
+}
+
+function updateSettlements(tick) {
+  const sum = summaryAt(tick), alive = new Set();
+  for (const cid of Object.keys(sum.c)) {
+    alive.add(cid);
+    const layout = layoutOf(+cid, tick, sum);
+    if (!layout) continue;
+    const cur = groups.get(cid);
+    if (cur && cur.key === layout.key) continue;
+    if (cur) scene.remove(cur.group);
+    const g = buildGroup(+cid, layout);
+    groups.set(cid, {group: g, key: layout.key});
+    scene.add(g);
+  }
+  for (const [cid, g] of groups)
+    if (!alive.has(cid)) { scene.remove(g.group); groups.delete(cid); }
+}
+
+// ---- camera: spring-damper rig with curved altitude path (§2) ---------------
+const cam = {
+  focus: new THREE.Vector3(0, 0, 0), fTarget: new THREE.Vector3(0, 0, 0),
+  yaw: 0.8, pitch: 0.9, dist: G * 1.15, dTarget: G * 1.15, vel: new THREE.Vector3(),
+};
+function camStep(dt) {
+  // Critically-damped-ish spring toward the focus target; the altitude bump
+  // during long flights gives the curved path of the ANNALS rig.
+  const k = 3.2, d = 2 * Math.sqrt(k);
+  v3.copy(cam.fTarget).sub(cam.focus).multiplyScalar(k)
+    .addScaledVector(cam.vel, -d);
+  cam.vel.addScaledVector(v3, dt);
+  cam.focus.addScaledVector(cam.vel, dt);
+  cam.dist += (cam.dTarget - cam.dist) * Math.min(1, dt * 3);
+  const flight = Math.min(1, cam.fTarget.distanceTo(cam.focus) / (G * 0.4));
+  const alt = cam.dist * (1 + 0.8 * Math.sin(Math.PI * flight));
+  camera.position.set(
+    cam.focus.x + Math.cos(cam.yaw) * Math.cos(cam.pitch) * alt,
+    cam.focus.y + Math.sin(cam.pitch) * alt,
+    cam.focus.z + Math.sin(cam.yaw) * Math.cos(cam.pitch) * alt);
+  camera.lookAt(cam.focus);
+}
+function flyTo(cid, tick) {
+  const s = sitesOf(cid, tick);
+  if (!s) return;
+  toWorld(s.anchor[0], s.anchor[1], cam.fTarget);
+  cam.dTarget = G * 0.28;
+}
+
+let dragging = false, px = 0, py = 0;
+stage.addEventListener("pointerdown", e => { dragging = true; px = e.clientX; py = e.clientY; });
+addEventListener("pointerup", () => dragging = false);
+addEventListener("pointermove", e => {
+  if (!dragging) return;
+  cam.yaw += (e.clientX - px) * 0.005;
+  cam.pitch = Math.min(1.35, Math.max(0.25, cam.pitch + (e.clientY - py) * 0.004));
+  px = e.clientX; py = e.clientY;
+});
+stage.addEventListener("wheel", e => {
+  cam.dTarget = Math.min(G * 2.2, Math.max(G * 0.12, cam.dTarget * (1 + e.deltaY * 0.001)));
+}, {passive: true});
+
+// ---- the director: this camera flies to arguments (§4) ----------------------
+// Beats from events + verbatim deliberations; priority bus with a cooldown.
+// [SCAFFOLD] one shot type (fly + card). Handoff non-events, defection walks,
+// regalia at fusion, and chronicle-attrition ambience are TODO.
+const PRIORITY = {fusion: 9, ratchet: 8, unfusion: 7, liberation: 7, schism: 6,
+                  hardening: 5, ratchet_crisis: 5, recovery: 4, contradiction: 3,
+                  encounter: 2, extinction: 6};
+const beats = [];
+for (const e of DATA.events)
+  beats.push({tick: e.tick, kind: e.type, culture: e.culture, quote: null});
+for (const d of DATA.deliberations)
+  beats.push({tick: d.tick, kind: d.kind, culture: d.culture, quote: d.text,
+              speaker: d.speaker, stance: d.stance, model: d.model});
+beats.sort((a, b) => a.tick - b.tick || (PRIORITY[b.kind] || 0) - (PRIORITY[a.kind] || 0));
+const chronMap = new Map();
+for (const c of DATA.chronicle) {
+  const k = `${c.tick}|${c.type}`;
+  if (!chronMap.has(k)) chronMap.set(k, c);
+}
+
+const beatEl = document.getElementById("beat");
+let beatPtr = 0, beatCool = 0, beatShownAt = 0;
+function seekBeats(tick) {
+  beatPtr = beats.findIndex(b => b.tick > tick);
+  if (beatPtr < 0) beatPtr = beats.length;
+  beatEl.classList.remove("on");
+}
+function directorStep(tick, now) {
+  while (beatPtr < beats.length && beats[beatPtr].tick <= tick) {
+    const b = beats[beatPtr++];
+    if ((PRIORITY[b.kind] || 0) < 2 || now < beatCool) continue;
+    beatCool = now + 4500;
+    beatShownAt = now;
+    if (b.culture != null) flyTo(b.culture, tick);
+    const chron = chronMap.get(`${b.tick}|${b.kind}`);
+    const quote = b.quote || (chron && chron.text) || "(the record is silent)";
+    const who = b.speaker
+      ? `${b.speaker.name} of the ${b.speaker.culture} — ${(b.speaker.traits || []).join(", ")}`
+      : chron ? `${chron.author}, ${chron.medium}` : "";
+    document.getElementById("beat-kind").textContent =
+      `${b.kind.replace("_", " ")} · year ${Math.floor(b.tick / 4)}` +
+      (b.stance ? ` · settled toward ${b.stance}` : "");
+    document.getElementById("beat-quote").textContent = quote;
+    document.getElementById("beat-cite").textContent =
+      who + (b.model && !b.model.startsWith("stub") ? ` · argued live (${b.model})` : "");
+    beatEl.classList.add("on");
+  }
+  if (beatEl.classList.contains("on") && now - beatShownAt > 9000)
+    beatEl.classList.remove("on");
+}
+
+// ---- legend -----------------------------------------------------------------
+const legendEl = document.getElementById("legend");
+function drawLegend(tick) {
+  const sum = summaryAt(tick);
+  legendEl.innerHTML = "";
+  for (const [cid, meta] of Object.entries(DATA.cultures)) {
+    const live = cid in sum.c;
+    const row = document.createElement("div");
+    row.className = "p" + (live ? "" : " gone");
+    const sw = document.createElement("span");
+    sw.className = "sw";
+    sw.style.background = `hsl(${hueOf(+cid)}, 50%, 45%)`;
+    row.append(sw, document.createTextNode(meta.name));
+    if (live) row.addEventListener("click", () => flyTo(+cid, curTick));
+    legendEl.appendChild(row);
+  }
+}
+
+// ---- time: play, scrub, seasons ---------------------------------------------
+const scrubEl = document.getElementById("scrub"), playBtn = document.getElementById("play");
+scrubEl.max = T - 1;
+let curTick = 0, playing = false, tps = 6, lastPaint = -1, lastLegend = -1;
+function setTick(t, hard) {
+  curTick = Math.max(0, Math.min(T - 1, t));
+  scrubEl.value = Math.floor(curTick);
+  const tick = Math.floor(curTick);
+  document.getElementById("year").textContent = "year " + Math.floor(tick / 4);
+  document.getElementById("season").textContent = SEASONS[tick % 4];
+  if (hard) { seekBeats(tick); beatCool = 0; }
+  if (tick !== lastPaint) { paintGround(tick); updateSettlements(tick); lastPaint = tick; }
+  if (Math.floor(tick / 20) !== lastLegend) { drawLegend(tick); lastLegend = Math.floor(tick / 20); }
+}
+playBtn.addEventListener("click", () => { playing = !playing; playBtn.textContent = playing ? "pause" : "play"; });
+scrubEl.addEventListener("input", () => { playing = false; playBtn.textContent = "play"; setTick(+scrubEl.value, true); });
+addEventListener("keydown", e => {
+  if (e.key === " ") { e.preventDefault(); playBtn.click(); }
+  if (e.key === "[") tps = Math.max(1, tps / 2);
+  if (e.key === "]") tps = Math.min(64, tps * 2);
+  document.getElementById("speed").textContent = tps + " t/s";
+});
+
+// ---- masthead ---------------------------------------------------------------
+document.getElementById("title").textContent =
+  `The Annals of the ${Object.keys(DATA.cultures).length} Peoples`;
+document.getElementById("subtitle").textContent =
+  `seed ${DATA.seed} · ${T} seasons · a history argued into being`;
+
+// ---- main loop --------------------------------------------------------------
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+addEventListener("resize", resize); resize();
+
+let prev = performance.now();
+// #t=1234&play seeks (and optionally starts) — a shareable moment.
+const hash = new URLSearchParams(location.hash.slice(1));
+setTick(+(hash.get("t") || 0), true);
+if (hash.has("play")) playBtn.click();
+toWorld(G / 2, G / 2, cam.fTarget); cam.focus.copy(cam.fTarget);
+function frame(now) {
+  const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
+  if (playing) {
+    setTick(curTick + tps * dt, false);
+    if (curTick >= T - 1) { playing = false; playBtn.textContent = "play"; }
+  }
+  directorStep(Math.floor(curTick), now);
+  // Day/night as a slow sun swing while playing (§2) — ambience, not record.
+  if (playing) {
+    const th = (curTick % 8) / 8 * Math.PI * 2;
+    sun.position.set(Math.cos(th) * G * 0.6, G * 0.55 + Math.sin(th) * G * 0.2, Math.sin(th) * G * 0.4);
+  }
+  camStep(dt);
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>

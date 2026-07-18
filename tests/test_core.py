@@ -137,6 +137,21 @@ def test_viz_report_builds_from_run_dir(tmp_path):
     assert "unfolding" in watch
 
 
+def test_viewer_builds_from_run_dir(tmp_path):
+    from dawn.viewer import write_viewer
+    e = Engine(3, Params(), out_dir=tmp_path)
+    e.run(160)
+    out = write_viewer(tmp_path)
+    html = out.read_text()
+    assert out.name == "viewer.html"
+    for placeholder in ("__DATA__", "__THREE_CORE_JS__", "__THREE_MODULE_JS__"):
+        assert placeholder not in html
+    # Self-contained: vendored three.js inline, nothing fetched from a host.
+    assert "Three.js Authors" in html
+    assert "<script src=" not in html and "import(\"http" not in html
+    assert '"deliberations"' in html
+
+
 def test_narrate_with_mock_provider(tmp_path):
     """Phase 2 narration: offline, deterministic, lexicon backstop enforced."""
     import json

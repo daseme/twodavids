@@ -1,10 +1,15 @@
-# VIEWER.md — the replay viewer (Phase 4+, design only)
+# VIEWER.md — the replay viewer (Phase 4, scaffold building)
 
 *A specification extracted from the ANNALS craft reference with its ontology
-inverted. Status: deliberately unbuilt. The handover's one non-negotiable is
-that reflexivity must not stay decorative — the model's stances go live
-(Phase 3) before any pixels do. This document exists so the bundle format is
-designed now and the viewer becomes a free consequence rather than a retrofit.*
+inverted. Status: Phase 3 shipped, so the pixel gate has opened — `dawn
+viewer <run-dir>` builds a scaffold (dawn/viewer.py + viewer_template.html,
+Three.js r178 vendored in dawn/vendor/). Working today: terrain/water/rivers,
+territory tint with closed-axis border sharpness, seasonal
+assembly/disassembly from the config table, spring-damper camera, a director
+that flies to arguments and quotes deliberations verbatim, `#t=N&play` deep
+links. Still to come, per this spec: the other six §3.3 axis→parameter rows,
+earned statal architecture (§3.2), heraldry (§3.5), LOD bubble band, handoff/
+defection/regalia beats, chronicle-attrition ambience, `dawn bundle`.*
 
 ## 0. The architecture in one sentence
 

@@ -54,6 +54,14 @@ def cmd_watch(args: argparse.Namespace) -> None:
           "space pauses, arrows step by year.")
 
 
+def cmd_viewer(args: argparse.Namespace) -> None:
+    from .viewer import write_viewer
+    out = write_viewer(Path(args.run_dir))
+    print(f"viewer written to {out}")
+    print("open it in a browser — a replay client, fully self-contained "
+          "(Three.js vendored inline); the camera flies to arguments.")
+
+
 def cmd_narrate(args: argparse.Namespace) -> None:
     """Phase 2: the model writes the chronicle's prose; history does not move."""
     from .prose import build_requests, narrate
@@ -217,6 +225,11 @@ def main() -> None:
     wt = sub.add_parser("watch", help="build a playback page: the world unfolding in time")
     wt.add_argument("run_dir")
     wt.set_defaults(fn=cmd_watch)
+
+    vw = sub.add_parser("viewer", help="Phase 4: build the 3D replay viewer "
+                        "(single file, Three.js vendored; scaffold)")
+    vw.add_argument("run_dir")
+    vw.set_defaults(fn=cmd_viewer)
 
     n = sub.add_parser("narrate", help="Phase 2: model-written prose for the chronicle (post-processing; history unchanged)")
     n.add_argument("run_dir")
