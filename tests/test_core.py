@@ -2,6 +2,7 @@
 and the repertoire mechanics (bias, lapse, recovery)."""
 
 import re
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -173,6 +174,20 @@ def test_promotion_stops_rather_than_degrading():
     for _ in range(60):
         o.deliberate("sketch", sit)
     assert o.calls == 8 and o.fallbacks == 52
+
+
+def test_viewer_boat_routing_is_water_to_water():
+    """Boats interpolated between the two peoples' anchors sail over dry
+    land, because anchors are on land. The route must run shore-to-shore
+    across the water body the two peoples actually share."""
+    tpl = (Path(__file__).parent.parent / "dawn" / "viewer_template.html").read_text()
+    assert "function sharedBody(" in tpl
+    assert "function shorePoint(" in tpl and "function bodyCentre(" in tpl
+    # The hull path must be built from shore points, not raw anchors.
+    voyage = tpl.split("const body = sharedBody(")[1].split("continue;")[0]
+    assert "shorePoint(f.from, body, tick)" in voyage
+    assert "shorePoint(f.to, body, tick)" in voyage
+    assert "bodyCentre(body)" in voyage, "the path must bow through the water"
 
 
 def test_max_calls_caps_the_spend():

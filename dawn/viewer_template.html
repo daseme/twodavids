@@ -517,8 +517,43 @@ function shoresAt(tick) {
   return shores;
 }
 function waterLinked(a, b, tick) {
+  return sharedBody(a, b, tick) !== null;
+}
+function sharedBody(a, b, tick) {
   const s = shoresAt(tick), sa = s[a], sb = s[b];
-  return !!(sa && sb && [...sa].some(v => sb.has(v)));
+  if (!sa || !sb) return null;
+  for (const v of sa) if (sb.has(v)) return v;
+  return null;
+}
+// A voyage runs water to water. The anchors are on land — routing hull
+// positions between them beached the boats, which is what instrumenting the
+// hulls against the water grid turned up. So each people embarks from the
+// nearest cell of the shared body, and the path bows toward that body's
+// centre rather than cutting the corner across a headland.
+const shoreCache = new Map(), bodyMid = new Map();
+function shorePoint(cid, body, tick) {
+  const key = `${cid}|${body}|${appliedTo}`;
+  if (shoreCache.has(key)) return shoreCache.get(key);
+  const site = sitesOf(cid, tick);
+  if (!site) return null;
+  const [ax, ay] = site.anchor;
+  let best = null, bd = 9e9;
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
+    if (bodyId[x][y] !== body) continue;
+    const d = (x - ax) ** 2 + (y - ay) ** 2;
+    if (d < bd) { bd = d; best = [x, y]; }
+  }
+  shoreCache.set(key, best);
+  return best;
+}
+function bodyCentre(body) {
+  if (bodyMid.has(body)) return bodyMid.get(body);
+  let sx = 0, sy = 0, n = 0;
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++)
+    if (bodyId[x][y] === body) { sx += x; sy += y; n++; }
+  const c = n ? [sx / n, sy / n] : null;
+  bodyMid.set(body, c);
+  return c;
 }
 
 // ---- named geography: the map says what the people call it ------------------
@@ -942,13 +977,21 @@ function updateMotion(t, now) {
     const A = anchorOf(f.from, tick), B = anchorOf(f.to, tick);
     if (!A || !B) continue;
     const u = (t - f.tick) / WALK;
-    if (waterLinked(f.from, f.to, tick)) {
-      if (bi < boatPool.length) {           // they go by water
+    const body = sharedBody(f.from, f.to, tick);
+    if (body !== null) {
+      const P = shorePoint(f.from, body, tick), Q = shorePoint(f.to, body, tick);
+      const C = bodyCentre(body);
+      if (P && Q && C && bi < boatPool.length) {   // they go by water
         const m = boatPool[bi++];
         const uu = Math.max(0, Math.min(1, u));
-        const x = A[0] + (B[0] - A[0]) * uu, y = A[1] + (B[1] - A[1]) * uu;
+        // quadratic bow through the body's centre keeps the hull off the shore
+        const w = (1 - uu) * (1 - uu), mid = 2 * (1 - uu) * uu, e = uu * uu;
+        const x = w * P[0] + mid * C[0] + e * Q[0];
+        const y = w * P[1] + mid * C[1] + e * Q[1];
+        const dx = 2 * (1 - uu) * (C[0] - P[0]) + 2 * uu * (Q[0] - C[0]);
+        const dy = 2 * (1 - uu) * (C[1] - P[1]) + 2 * uu * (Q[1] - C[1]);
         m.position.set(x - G / 2, 0.03 + Math.sin(t * 3 + f.from) * 0.012, y - G / 2);
-        m.rotation.z = -Math.atan2(B[1] - A[1], B[0] - A[0]);
+        m.rotation.z = -Math.atan2(dy, dx);
         m.material.color.copy(colorOf(f.from, 0.6));
         m.visible = true;
       }
@@ -1446,6 +1489,12 @@ window.__dawn = {
   // disassembly moves continuously instead of teleporting.
   seek: (t) => { playing = false; playBtn.textContent = "play";
                  setTick(t, true); updateSettlements(t); },
+  // Boat positions in grid coords, with the water flag under each hull: a
+  // crossing that renders over dry land is a bug, and this is how to see it.
+  boatCells: () => boatPool.filter(m => m.visible).map(m => {
+    const x = Math.round(m.position.x + G / 2), y = Math.round(m.position.z + G / 2);
+    return {x, y, onWater: !!(DATA.water[x] && DATA.water[x][y])};
+  }),
   slotPos: (cid, id) => {
     const m = groups.get(String(cid))?.slots.get(id)?.mesh;
     return m && m.visible ? {x: +m.position.x.toFixed(4), z: +m.position.z.toFixed(4)} : null;
