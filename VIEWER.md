@@ -5,11 +5,17 @@ inverted. Status: Phase 3 shipped, so the pixel gate has opened — `dawn
 viewer <run-dir>` builds a scaffold (dawn/viewer.py + viewer_template.html,
 Three.js r178 vendored in dawn/vendor/). Working today: terrain/water/rivers,
 territory tint with closed-axis border sharpness, seasonal
-assembly/disassembly from the config table, spring-damper camera, a director
-that flies to arguments and quotes deliberations verbatim, `#t=N&play` deep
-links. Still to come, per this spec: the other six §3.3 axis→parameter rows,
-earned statal architecture (§3.2), heraldry (§3.5), LOD bubble band, handoff/
-defection/regalia beats, chronicle-attrition ambience, `dawn bundle`.*
+assembly/disassembly from the config table, all eight §3.3 axis→parameter
+rows (salience-gated), earned statal architecture from the domination tracks
+(§3.2: palisade/watchtower, monumental lodge + plaza, guarded granaries,
+keep + regalia + processional axis at fusion), heraldic charge repulsion
+against territorial neighbours with fallen-crown scars at unfusion (§3.5),
+an LOD person band, spring-damper camera, a director that flies to arguments
+— deliberations verbatim, liberation notes, ratchet displacements, and the
+succession non-event — `dawn bundle` (§6.3), and `#t=N&play` deep links.
+Still to come: defection walks and feast-boundary shots, chronicle-attrition
+ambience, day/night polish, the full ANNALS shot grammar, drag-and-drop
+bundle loading.*
 
 ## 0. The architecture in one sentence
 

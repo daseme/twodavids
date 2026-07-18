@@ -62,6 +62,12 @@ def cmd_viewer(args: argparse.Namespace) -> None:
           "(Three.js vendored inline); the camera flies to arguments.")
 
 
+def cmd_bundle(args: argparse.Namespace) -> None:
+    from .viewer import write_bundle
+    out = write_bundle(Path(args.run_dir))
+    print(f"bundle written to {out}")
+
+
 def cmd_narrate(args: argparse.Namespace) -> None:
     """Phase 2: the model writes the chronicle's prose; history does not move."""
     from .prose import build_requests, narrate
@@ -230,6 +236,11 @@ def main() -> None:
                         "(single file, Three.js vendored; scaffold)")
     vw.add_argument("run_dir")
     vw.set_defaults(fn=cmd_viewer)
+
+    bd = sub.add_parser("bundle", help="zip the run bundle (six files + "
+                        "version stamp, VIEWER.md §6.3)")
+    bd.add_argument("run_dir")
+    bd.set_defaults(fn=cmd_bundle)
 
     n = sub.add_parser("narrate", help="Phase 2: model-written prose for the chronicle (post-processing; history unchanged)")
     n.add_argument("run_dir")

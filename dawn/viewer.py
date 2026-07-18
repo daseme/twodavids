@@ -39,10 +39,40 @@ def build_viewer_data(run_dir: Path) -> dict:
         for r in records
         if r["type"] == "deliberation" and r["kind"] in BEAT_KINDS
     ]
+    # Richer event detail than the 2D watch needs: liberation notes, ratchet
+    # structures, and successions — the recurring non-event of power dissolving
+    # on schedule, which the director films precisely because it is routine.
+    data["events2"] = [
+        {"tick": r["tick"], "type": r["type"], "culture": r.get("culture"),
+         "note": r.get("note"), "mechanism": r.get("mechanism"),
+         "structure": r.get("structure"), "displaced": r.get("displaced")}
+        for r in records
+        if r["type"] in ("ratchet", "hardening", "fusion", "unfusion",
+                         "liberation", "schism", "extinction", "succession")
+    ]
     scars_path = run_dir / "scars.jsonl"
     data["scars"] = ([json.loads(l) for l in scars_path.open()]
                      if scars_path.exists() else [])
     return data
+
+
+BUNDLE_FILES = ("meta.json", "world.json", "journal.jsonl", "chronicle.jsonl",
+                "scars.jsonl", "metrics.json")
+BUNDLE_VERSION = 1
+
+
+def write_bundle(run_dir: Path) -> Path:
+    """§6.3: zip the run's six files with a version stamp."""
+    import zipfile
+    out = run_dir / "bundle.zip"
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("bundle.json", json.dumps(
+            {"version": BUNDLE_VERSION, "files": list(BUNDLE_FILES)}))
+        for name in BUNDLE_FILES:
+            p = run_dir / name
+            if p.exists():
+                z.write(p, name)
+    return out
 
 
 def write_viewer(run_dir: Path) -> Path:
