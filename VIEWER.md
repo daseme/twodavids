@@ -37,8 +37,15 @@ mark outlasts the argument about it. Clicking a people opens a **dossier**
 (inspection only, §5): population, seasonal round, the eight axes with
 salience as band width, the domination tracks, what survives of their record,
 and the prose sketch verbatim — the same text the oracle reads when it argues
-as them. `window.__dawn` exposes read-only counts so the page can be checked
-by a driver rather than by eye.
+as them. `window.__dawn` exposes read-only counts, a fractional `seek`, and slot
+positions so the page can be checked by a driver rather than by eye.
+The §3.4 shot now animates: every element carries a stable slot id, so a
+household's winter house and summer tent are one mesh moving. The camp holds
+its form for most of the season and strikes in the last third — measured on
+seed 3, household d0 of a seasonal people walks ~4 units out to the summer
+camps while the lodge scales away, and the same household of the lineage
+that ratcheted in year 431 walks 0. The ratchet is legible as an absence,
+exactly as specified.
 Still to come: interpolated camera paths between beats, sound.*
 
 ## 0. The architecture in one sentence
