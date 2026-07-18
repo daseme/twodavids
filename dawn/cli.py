@@ -75,6 +75,16 @@ def cmd_narrate(args: argparse.Namespace) -> None:
     print(json.dumps(result, indent=2))
 
 
+def cmd_compare(args: argparse.Namespace) -> None:
+    from .compare import compare, format_report
+    cmp = compare(Path(args.stub_dir), Path(args.model_dir))
+    report = format_report(cmp)
+    print(report)
+    if args.json:
+        Path(args.json).write_text(json.dumps(cmp, indent=2))
+        print(f"\nfull comparison written to {args.json}")
+
+
 def cmd_almanac(args: argparse.Namespace) -> None:
     run_dir = Path(args.run_dir)
     text = compile_almanac(run_dir)
@@ -214,6 +224,12 @@ def main() -> None:
     n.add_argument("--mock", action="store_true", help="use the offline mock provider (testing)")
     n.add_argument("--limit", type=int, default=None, help="cap the number of requests")
     n.set_defaults(fn=cmd_narrate)
+
+    cp = sub.add_parser("compare", help="Phase 3 experiment: promoted vs stub, the diff that is the finding")
+    cp.add_argument("stub_dir")
+    cp.add_argument("model_dir")
+    cp.add_argument("--json", type=str, default=None)
+    cp.set_defaults(fn=cmd_compare)
 
     a = sub.add_parser("almanac", help="recompile the almanac from a run directory")
     a.add_argument("run_dir")
