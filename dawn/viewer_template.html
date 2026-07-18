@@ -338,9 +338,15 @@ scene.background = new THREE.Color(0x191510);
 scene.fog = new THREE.Fog(0x191510, G * 1.4, G * 3.2);
 const camera = new THREE.PerspectiveCamera(46, 1, 0.1, G * 8);
 
-const sun = new THREE.DirectionalLight(0xfff2dc, 2.6);
-sun.position.set(G * 0.5, G * 0.7, G * 0.3);
-scene.add(sun, new THREE.AmbientLight(0x8a7f6a, 1.1));
+// Warm key, cool fill, and a lower sun: the brief's golden hour, where lit
+// planes go warm and shadowed ones go cool. The previous rig was bright and
+// warm on both sides, which is what flattened the landscape — a hillside needs
+// its shadowed face to change hue, not just dim.
+const sun = new THREE.DirectionalLight(0xffe3b0, 2.35);
+sun.position.set(G * 0.62, G * 0.46, G * 0.30);
+const skyFill = new THREE.HemisphereLight(0x9fb4d8, 0x5b5340, 0.85);
+scene.add(sun, skyFill);
+const SKY_DAY = new THREE.Color(0x9fb4d8), SKY_NIGHT = new THREE.Color(0x2b3560);
 
 // Terrain: one vertex per cell; height from elevation (mils, rendering-only —
 // it never drives culture, and it doesn't here either: pixels only).
@@ -377,6 +383,15 @@ const relief = Array.from({length: G}, (_, x) => {
   return col;
 });
 const heightAt = (x, y) => baseHeight(x, y) + (relief[x] ? relief[x][y] : 0);
+// Painterly mottle: broad tonal drift across the ground so a biome reads as a
+// painted mass rather than one flat fill. Precomputed — paintGround runs on
+// every tick change and has no business evaluating noise per vertex.
+const mottle = Array.from({length: G}, (_, x) => {
+  const col = new Float32Array(G);
+  for (let y = 0; y < G; y++)
+    col[y] = 0.88 + fbm(x * 0.24, y * 0.24, NSEED + 900) * 0.26;
+  return col;
+});
 for (let i = 0; i < pos.count; i++) {
   const x = i % G, y = Math.floor(i / G);
   pos.setXYZ(i, x - G / 2, heightAt(x, y), y - G / 2);
@@ -408,13 +423,27 @@ scene.add(water);
 // comes from the closed/open axis of the local owner: open peoples bleed,
 // closed ones crisp. [SCAFFOLD] v1 is a fixed-kernel blend weighted by the
 // owner's closed value; dead hospitality routes (scars) don't yet sharpen edges.
-const tintTmp = new THREE.Color();
+// The viewer keeps its own biome palette, deliberately diverging from the 2D
+// watch's BIOME_TINT. Watch paints unlit pixels, where those pale tints read
+// correctly; here the same values pass under a bright sun and come back as
+// sand everywhere, biomes indistinguishable. These are saturated and pulled
+// apart so meadow, wood, upland and desert are told apart from altitude —
+// the brief's broad tonal masses, which flat tints cannot give.
+const BIOME_3D = [[150,152,101], [83,112,70], [116,146,88],
+                  [188,178,142], [132,131,141], [198,178,133]];
+const tintTmp = new THREE.Color(), snowTmp = new THREE.Color(0.91, 0.93, 0.96);
+// The ground takes the season too — the brief's rule that a season must change
+// the mood, not merely recolour the grass. Winter additionally lays snow by
+// elevation, which is the cheapest honest version of "on upward-facing terrain".
+const SEASON_GROUND = [[1.02, 1.07, 0.95], [1.07, 1.02, 0.88],
+                       [1.10, 0.97, 0.84], [0.94, 0.97, 1.05]];
 function paintGround(tick) {
   const own = ownerAt(tick), sum = summaryAt(tick);
   const col = terrainGeo.attributes.color;
+  const season = tick % 4, sg = SEASON_GROUND[season];
   for (let i = 0; i < pos.count; i++) {
     const x = i % G, y = Math.floor(i / G);
-    const [r, g, b] = BIOME_TINT[DATA.biome[x][y]];
+    const [r, g, b] = BIOME_3D[DATA.biome[x][y]];
     tintTmp.setRGB(r / 255, g / 255, b / 255);
     if (DATA.water[x][y]) { tintTmp.multiplyScalar(0.55); }
     else {
@@ -435,6 +464,12 @@ function paintGround(tick) {
         const sharp = 0.35 + 0.45 * Math.max(0, closed);  // closed ⇒ crisp frontier
         const w = 0.30 * Math.min(1, edge < 1 ? (edge - 0.3) / 0.7 * (1 - sharp) + sharp * (edge > 0.6 ? 1 : 0) : 1);
         tintTmp.lerp(colorOf(me, 0.45), Math.max(0, w));
+      }
+      const k = mottle[x][y];
+      tintTmp.setRGB(tintTmp.r * sg[0] * k, tintTmp.g * sg[1] * k, tintTmp.b * sg[2] * k);
+      if (season === 3) {
+        const snow = Math.max(0, Math.min(0.72, (DATA.elevation[x][y] / 1000 - 0.34) * 1.5));
+        if (snow > 0) tintTmp.lerp(snowTmp, snow);
       }
     }
     col.setXYZ(i, tintTmp.r, tintTmp.g, tintTmp.b);
@@ -1116,6 +1151,169 @@ function updateSettlements(t) {
   updateCrownScars(tick);
 }
 
+// ---- vegetation: the record's silence, densely decorated (§0, §2) -----------
+// Biome is a worldgen product exported for rendering and it never drives
+// culture — the same standing as elevation — so forests are elaboration of the
+// safest kind: they say nothing about anybody. Placement is hashed from the
+// seed, so a bundle always grows the same wood.
+//
+// Everything is instanced: two draw calls per species, trunks and canopies
+// apart so an instance colour can dress the leaves without muddying the wood.
+// The seasonal ramp is four colour buffers computed once and swapped, not a
+// per-tree recolour every tick — and winter swaps the canopy matrices too, for
+// the bare form the brief asks for.
+const VEG = {
+  //          density  pine share
+  steppe:        [0.14, 0.05],
+  forest:        [4.60, 0.28],
+  river_valley:  [1.70, 0.08],
+  coast:         [0.55, 0.10],
+  mountain:      [1.80, 0.88],
+  desert:        [0.03, 0.00],
+};
+const VEG_BY_INDEX = ["steppe", "forest", "river_valley", "coast", "mountain", "desert"]
+  .map(b => VEG[b]);
+
+// Leaves take the season; needles barely move, which is most of what tells the
+// two apart from altitude in autumn.
+const LEAF = {
+  broad: [[0.44, 0.63, 0.28], [0.29, 0.49, 0.21], [0.74, 0.45, 0.15], [0.44, 0.36, 0.29]],
+  pine:  [[0.21, 0.41, 0.25], [0.18, 0.36, 0.22], [0.20, 0.34, 0.20], [0.17, 0.29, 0.21]],
+};
+
+// A canopy is lit from above by its own vertex colours, so even a flat instance
+// colour reads as a rounded mass rather than a paper cut-out.
+function gradeCanopy(geo, lo, hi) {
+  geo.computeBoundingBox();
+  const bb = geo.boundingBox, span = Math.max(1e-6, bb.max.y - bb.min.y);
+  const p = geo.attributes.position, cs = new Float32Array(p.count * 3);
+  for (let i = 0; i < p.count; i++) {
+    const t = (p.getY(i) - bb.min.y) / span, k = lo + (hi - lo) * (t * t * (3 - 2 * t));
+    cs[i * 3] = cs[i * 3 + 1] = cs[i * 3 + 2] = k;
+  }
+  geo.setAttribute("color", new THREE.BufferAttribute(cs, 3));
+  return geo;
+}
+const ico = (r, d) => new THREE.IcosahedronGeometry(r, d);
+const TRUNK = {
+  broad: mergeParts([{g: cyl(0.028, 0.045, 0.30, 5), c: C.woodD, p: [0, 0.15, 0]}]),
+  pine:  mergeParts([{g: cyl(0.022, 0.040, 0.24, 5), c: C.woodD, p: [0, 0.12, 0]}]),
+};
+// Three overlapping blobs, deliberately off-centre: a canopy with one axis of
+// asymmetry stops a hillside of trees looking like a bed of identical bushes.
+const CANOPY = {
+  broad: gradeCanopy(mergeParts([
+    {g: ico(0.19, 0), c: [1, 1, 1], p: [0, 0.42, 0]},
+    {g: ico(0.135, 0), c: [1, 1, 1], p: [0.10, 0.33, 0.05], s: [1, 0.85, 1]},
+    {g: ico(0.12, 0), c: [1, 1, 1], p: [-0.08, 0.36, -0.07]},
+  ]), 0.72, 1.16),
+  pine: gradeCanopy(mergeParts([
+    {g: cone(0.155, 0.26, 6), c: [1, 1, 1], p: [0, 0.30, 0]},
+    {g: cone(0.115, 0.22, 6), c: [1, 1, 1], p: [0, 0.44, 0]},
+    {g: cone(0.075, 0.18, 6), c: [1, 1, 1], p: [0, 0.57, 0]},
+  ]), 0.66, 1.18),
+};
+
+// Where people live, the wood is cleared. Anchors are sampled across the whole
+// run rather than read at one tick, so a camp that moves in year 300 is not
+// found standing in a thicket — and the clearing is the one place vegetation
+// touches the record at all, by staying out of its way.
+function clearedCells() {
+  const cleared = new Set();
+  for (const s of sums) {
+    for (const cid of Object.keys(s.c)) {
+      const site = sitesOf(+cid, s.tick);
+      if (!site || !site.anchor) continue;
+      const [ax, ay] = site.anchor;
+      const r = 2;
+      for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++)
+        if (dx * dx + dy * dy <= r * r)
+          cleared.add(((ax + dx) | 0) * 1000 + ((ay + dy) | 0));
+    }
+  }
+  return cleared;
+}
+
+const forest = {broad: null, pine: null, season: -1};
+function plantForest() {
+  const cleared = clearedCells();
+  const place = {broad: [], pine: []};
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
+    if (DATA.water[x][y]) continue;
+    if (cleared.has(x * 1000 + y)) continue;
+    const [density, pineShare] = VEG_BY_INDEX[DATA.biome[x][y]] || VEG_BY_INDEX[0];
+    // Fractional density becomes a probability, so a sparse biome scatters
+    // instead of banding at the cell grid.
+    const whole = Math.floor(density);
+    const n = whole + (hash2(x, y, NSEED + 101) < density - whole ? 1 : 0);
+    for (let i = 0; i < n; i++) {
+      const h1 = hash2(x * 7 + i, y * 13 + i * 3, NSEED + 211 + i);
+      const h2 = hash2(x * 11 + i * 5, y * 3 + i, NSEED + 307 + i);
+      const h3 = hash2(x + i * 17, y + i * 19, NSEED + 401 + i);
+      const h4 = hash2(x * 5 + i, y * 23 + i, NSEED + 503 + i);
+      const px = x + (h1 - 0.5) * 0.92, py = y + (h2 - 0.5) * 0.92;
+      const kind = h3 < pineShare ? "pine" : "broad";
+      place[kind].push({x: px, y: py, s: 0.72 + h4 * 0.66, rot: h1 * 6.283});
+    }
+  }
+
+  const v = new THREE.Vector3(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
+  const e = new THREE.Euler(), m4 = new THREE.Matrix4();
+  for (const kind of ["broad", "pine"]) {
+    const list = place[kind];
+    if (!list.length) continue;
+    const trunkMat = new THREE.MeshLambertMaterial({color: 0x8a7a63, vertexColors: true});
+    const leafMat = new THREE.MeshLambertMaterial({color: 0xffffff, vertexColors: true});
+    const trunks = new THREE.InstancedMesh(TRUNK[kind], trunkMat, list.length);
+    const leaves = new THREE.InstancedMesh(CANOPY[kind], leafMat, list.length);
+    // Winter bares the broadleaves: same trunks, a smaller sparser crown.
+    const full = new Float32Array(list.length * 16), bare = new Float32Array(list.length * 16);
+    list.forEach((t, i) => {
+      toWorld(t.x, t.y, v);
+      e.set(0, t.rot, 0); q.setFromEuler(e);
+      sc.set(t.s, t.s, t.s); m4.compose(v, q, sc); m4.toArray(full, i * 16);
+      const b = kind === "pine" ? t.s : t.s * 0.6;
+      sc.set(b, kind === "pine" ? t.s : t.s * 0.78, b);
+      m4.compose(v, q, sc); m4.toArray(bare, i * 16);
+      trunks.setMatrixAt(i, new THREE.Matrix4().fromArray(full, i * 16));
+    });
+    leaves.instanceMatrix.array.set(full);
+    trunks.instanceMatrix.needsUpdate = true;
+    leaves.instanceMatrix.needsUpdate = true;
+    // Four seasons of instance colour, computed once.
+    const cols = LEAF[kind].map(base => {
+      const arr = new Float32Array(list.length * 3);
+      list.forEach((t, i) => {
+        const j = hash2((t.x * 64) | 0, (t.y * 64) | 0, NSEED + 601);
+        const k = 0.86 + j * 0.30;
+        arr[i * 3] = Math.min(1, base[0] * k);
+        arr[i * 3 + 1] = Math.min(1, base[1] * (0.90 + j * 0.22));
+        arr[i * 3 + 2] = Math.min(1, base[2] * k);
+      });
+      return arr;
+    });
+    leaves.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cols[0]), 3);
+    trunks.frustumCulled = false; leaves.frustumCulled = false;
+    scene.add(trunks, leaves);
+    forest[kind] = {trunks, leaves, cols, full, bare, n: list.length};
+  }
+}
+plantForest();
+
+function updateForest(tick) {
+  const season = tick % 4;
+  if (season === forest.season) return;
+  forest.season = season;
+  for (const kind of ["broad", "pine"]) {
+    const f = forest[kind];
+    if (!f) continue;
+    f.leaves.instanceColor.array.set(f.cols[season]);
+    f.leaves.instanceColor.needsUpdate = true;
+    f.leaves.instanceMatrix.array.set(season === 3 ? f.bare : f.full);
+    f.leaves.instanceMatrix.needsUpdate = true;
+  }
+}
+
 // ---- LOD bubble band (§2): people are statistics until the camera is close --
 // Individuals instantiate lazily near the lens — the sim's own person model.
 const peopleGroups = new Map();
@@ -1632,7 +1830,7 @@ function setTick(t, hard) {
   document.getElementById("year").textContent = "year " + Math.floor(tick / 4);
   document.getElementById("season").textContent = SEASONS[tick % 4];
   if (hard) { seekBeats(tick); beatCool = 0; }
-  if (tick !== lastPaint) { paintGround(tick); lastPaint = tick; }
+  if (tick !== lastPaint) { paintGround(tick); updateForest(tick); lastPaint = tick; }
   if (Math.floor(tick / 20) !== lastLegend) {
     drawLegend(tick); lastLegend = Math.floor(tick / 20);
     if (dossierCid !== null) showDossier(dossierCid, tick);
@@ -1712,6 +1910,10 @@ function frame(now) {
     sun.position.set(Math.cos(th) * G * 0.6,
                      G * (0.18 + 0.45 * dayness), Math.sin(th) * G * 0.4);
     sun.intensity = 1.1 + 1.7 * dayness;
+    // Night is a painted nocturne, not an unlit scene: the fill drops and goes
+    // indigo, so silhouettes stay readable while the warmth leaves the land.
+    skyFill.intensity = 0.30 + 0.62 * dayness;
+    skyFill.color.copy(SKY_NIGHT).lerp(SKY_DAY, dayness);
     scene.background.setHSL(0.09, 0.16, 0.045 + 0.035 * dayness);
     scene.fog.color.copy(scene.background);
   }
