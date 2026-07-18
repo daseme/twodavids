@@ -81,7 +81,7 @@ class AnthropicBatchProvider:
                 params=MessageCreateParamsNonStreaming(**params)))
 
         batch = client.messages.batches.create(requests=batch_requests)
-        print(f"batch {batch.id}: {len(batch_requests)} requests submitted")
+        print(f"batch {batch.id}: {len(batch_requests)} requests submitted", flush=True)
 
         start = time.time()
         while True:
@@ -93,7 +93,7 @@ class AnthropicBatchProvider:
                                    f"after {self.timeout_seconds}s")
             c = batch.request_counts
             print(f"  …{batch.processing_status}: {c.processing} processing, "
-                  f"{c.succeeded} succeeded, {c.errored} errored")
+                  f"{c.succeeded} succeeded, {c.errored} errored", flush=True)
             time.sleep(self.poll_seconds)
 
         out: dict[str, str] = {}
