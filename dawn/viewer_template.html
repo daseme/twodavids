@@ -109,7 +109,15 @@ const coreURL = blobURL(document.getElementById("three-core-src").textContent);
 const THREE = await import(blobURL(
   document.getElementById("three-src").textContent
     .replaceAll("./three.core.min.js", coreURL)));
-const DATA = JSON.parse(document.getElementById("bundle").textContent);
+
+// The whole app lives in boot(DATA) so a dropped bundle can replace the
+// world: abort the old session's listeners and render loop, start anew.
+let bootCtl = null;
+function boot(DATA) {
+  if (bootCtl) bootCtl.abort();
+  const ctl = bootCtl = new AbortController();
+  const sig = {signal: ctl.signal};
+  document.getElementById("stage").replaceChildren();
 
 // ---- shared conventions (identical to the 2D watch mode) --------------------
 const SEASONS = ["spring", "summer", "autumn", "winter"];
@@ -494,6 +502,7 @@ function buildGroup(cid, layout) {
     m.position.y += lift[s.kind] !== undefined ? lift[s.kind] : 0.1 * s.s;
     if (s.kind === "banner") m.rotation.y = Math.PI / 4;
     if (s.kind === "crownUp") m.rotation.x = Math.PI / 2;
+    m.userData.kind = s.kind;
     g.add(m);
   }
   return g;
@@ -640,6 +649,7 @@ function updateMargins(tick) {
 const cam = {
   focus: new THREE.Vector3(0, 0, 0), fTarget: new THREE.Vector3(0, 0, 0),
   yaw: 0.8, pitch: 0.9, dist: G * 1.15, dTarget: G * 1.15, vel: new THREE.Vector3(),
+  pTarget: null,   // director-set pitch; released to the viewer on drag
 };
 function camStep(dt) {
   // Critically-damped-ish spring toward the focus target; the altitude bump
@@ -650,6 +660,8 @@ function camStep(dt) {
   cam.vel.addScaledVector(v3, dt);
   cam.focus.addScaledVector(cam.vel, dt);
   cam.dist += (cam.dTarget - cam.dist) * Math.min(1, dt * 3);
+  if (cam.pTarget !== null)
+    cam.pitch += (cam.pTarget - cam.pitch) * Math.min(1, dt * 2.5);
   const flight = Math.min(1, cam.fTarget.distanceTo(cam.focus) / (G * 0.4));
   const alt = cam.dist * (1 + 0.8 * Math.sin(Math.PI * flight));
   camera.position.set(
@@ -658,25 +670,44 @@ function camStep(dt) {
     cam.focus.z + Math.sin(cam.yaw) * Math.cos(cam.pitch) * alt);
   camera.lookAt(cam.focus);
 }
-function flyTo(cid, tick) {
+// Shot grammar (§4): each beat kind gets its own framing. The ratchet is an
+// overhead — the assembly that fails to disperse reads in plan view; the
+// liberation is low and close; the schism is wide enough to hold both camps.
+// Long moves cut instead of flying (the ANNALS rig's rule against airline
+// tours); pitch is directed only until the viewer next drags.
+const SHOTS = {fusion: {d: 0.20, p: 0.62}, ratchet: {d: 0.30, p: 1.28},
+               unfusion: {d: 0.22, p: 0.7}, liberation: {d: 0.17, p: 0.5},
+               schism: {d: 0.55, p: 0.95}, extinction: {d: 0.45, p: 1.1},
+               encounter: {d: 0.22, p: 0.68}, succession: {d: 0.24, p: 0.78}};
+function frameShot(kind) {
+  const s = SHOTS[kind] || {d: 0.28, p: 0.9};
+  cam.dTarget = G * s.d;
+  cam.pTarget = s.p;
+  if (cam.fTarget.distanceTo(cam.focus) > G * 0.9) {   // cut, don't tour
+    cam.focus.copy(cam.fTarget).add(v3.set(G * 0.06, 0, G * 0.06));
+    cam.vel.set(0, 0, 0);
+  }
+}
+function flyTo(cid, tick, kind) {
   const s = sitesOf(cid, tick);
   if (!s) return;
   toWorld(s.anchor[0], s.anchor[1], cam.fTarget);
-  cam.dTarget = G * 0.28;
+  frameShot(kind);
 }
 
 let dragging = false, px = 0, py = 0;
-stage.addEventListener("pointerdown", e => { dragging = true; px = e.clientX; py = e.clientY; });
-addEventListener("pointerup", () => dragging = false);
+stage.addEventListener("pointerdown", e => { dragging = true; px = e.clientX; py = e.clientY; }, sig);
+addEventListener("pointerup", () => dragging = false, sig);
 addEventListener("pointermove", e => {
   if (!dragging) return;
+  cam.pTarget = null;   // the viewer took the wheel
   cam.yaw += (e.clientX - px) * 0.005;
   cam.pitch = Math.min(1.35, Math.max(0.25, cam.pitch + (e.clientY - py) * 0.004));
   px = e.clientX; py = e.clientY;
-});
+}, sig);
 stage.addEventListener("wheel", e => {
   cam.dTarget = Math.min(G * 2.2, Math.max(G * 0.12, cam.dTarget * (1 + e.deltaY * 0.001)));
-}, {passive: true});
+}, {passive: true, signal: ctl.signal});
 
 // ---- the director: this camera flies to arguments (§4) ----------------------
 // Beats from events + verbatim deliberations; priority bus with a cooldown.
@@ -722,22 +753,30 @@ function seekBeats(tick) {
   beatEl.classList.remove("on");
   beatFire = null;
 }
+let crownPulse = null;   // {cid, t0} — regalia announcing themselves at fusion
 function directorStep(tick, now) {
   while (beatPtr < beats.length && beats[beatPtr].tick <= tick) {
     const b = beats[beatPtr++];
-    if ((PRIORITY[b.kind] || 0) < 2 || now < beatCool) continue;
+    const pri = PRIORITY[b.kind] || 0;
+    // Cooldown by rank: rare structural beats interrupt; encounters and
+    // successions only fill silence.
+    if (pri < 2) continue;
+    if (now < beatCool && pri < 6) continue;
+    if (pri <= 2 && now < beatCool + 2500) continue;
     beatCool = now + 4500;
     beatShownAt = now;
+    if (b.kind === "fusion" && b.culture != null)
+      crownPulse = {cid: b.culture, t0: now};
     // The encounter shot: two delegations across a frontier fire — the
     // camera lands on the border midpoint, not either people's ground.
     if (b.kind === "encounter" && b.other != null && b.culture != null) {
       const A = anchorOf(b.culture, tick), B = anchorOf(b.other, tick);
       if (A && B) {
         toWorld((A[0] + B[0]) / 2, (A[1] + B[1]) / 2, cam.fTarget);
-        cam.dTarget = G * 0.22;
+        frameShot("encounter");
         beatFire = [b.culture, b.other];
       }
-    } else if (b.culture != null) flyTo(b.culture, tick);
+    } else if (b.culture != null) flyTo(b.culture, tick, b.kind);
     const chron = chronMap.get(`${b.tick}|${b.kind}`);
     const quote = (chron && chron.text) || b.quote || GLOSSES[b.kind]
                   || "(the record is silent)";
@@ -798,14 +837,14 @@ function setTick(t, hard) {
   if (tick !== lastPaint) { paintGround(tick); updateSettlements(tick); lastPaint = tick; }
   if (Math.floor(tick / 20) !== lastLegend) { drawLegend(tick); lastLegend = Math.floor(tick / 20); }
 }
-playBtn.addEventListener("click", () => { playing = !playing; playBtn.textContent = playing ? "pause" : "play"; });
-scrubEl.addEventListener("input", () => { playing = false; playBtn.textContent = "play"; setTick(+scrubEl.value, true); });
+playBtn.addEventListener("click", () => { playing = !playing; playBtn.textContent = playing ? "pause" : "play"; }, sig);
+scrubEl.addEventListener("input", () => { playing = false; playBtn.textContent = "play"; setTick(+scrubEl.value, true); }, sig);
 addEventListener("keydown", e => {
   if (e.key === " ") { e.preventDefault(); playBtn.click(); }
   if (e.key === "[") tps = Math.max(1, tps / 2);
   if (e.key === "]") tps = Math.min(64, tps * 2);
   document.getElementById("speed").textContent = tps + " t/s";
-});
+}, sig);
 
 // ---- masthead ---------------------------------------------------------------
 document.getElementById("title").textContent =
@@ -818,7 +857,7 @@ function resize() {
   const w = stage.clientWidth, h = stage.clientHeight;
   renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
 }
-addEventListener("resize", resize); resize();
+addEventListener("resize", resize, sig); resize();
 
 let prev = performance.now();
 // #t=1234&play seeks (and optionally starts) — a shareable moment.
@@ -827,6 +866,7 @@ setTick(+(hash.get("t") || 0), true);
 if (hash.has("play")) playBtn.click();
 toWorld(G / 2, G / 2, cam.fTarget); cam.focus.copy(cam.fTarget);
 function frame(now) {
+  if (ctl.signal.aborted) { renderer.dispose(); return; }
   const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
   if (playing) {
     setTick(curTick + tps * dt, false);
@@ -844,10 +884,109 @@ function frame(now) {
     scene.background.setHSL(0.09, 0.16, 0.045 + 0.035 * dayness);
     scene.fog.color.copy(scene.background);
   }
+  // Regalia announce themselves: the crown swells and settles after fusion.
+  if (crownPulse) {
+    const g = groups.get(String(crownPulse.cid));
+    const age = (now - crownPulse.t0) / 1000;
+    if (!g || age > 6) crownPulse = null;
+    else for (const m of g.group.children)
+      if (m.userData.kind === "crownUp")
+        m.scale.setScalar(1 + Math.max(0, Math.sin(age * 3)) * Math.exp(-age * 0.6));
+  }
   camStep(dt);
   updatePeople();
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+}   // end boot()
+
+boot(JSON.parse(document.getElementById("bundle").textContent));
+
+// ---- drag-and-drop bundle loading (§6.3): one viewer, any world -------------
+// dawn bundle writes stored (uncompressed) zips precisely so this parser
+// stays ~30 lines with no vendored inflate. Derived fields are reshaped
+// from the six raw files — reshaping only, never sim logic.
+function readStoredZip(buf) {
+  const dv = new DataView(buf), u8 = new Uint8Array(buf), td = new TextDecoder();
+  let i = buf.byteLength - 22;
+  while (i >= 0 && dv.getUint32(i, true) !== 0x06054b50) i--;
+  if (i < 0) throw new Error("not a zip");
+  const n = dv.getUint16(i + 10, true);
+  let p = dv.getUint32(i + 16, true);
+  const files = {};
+  for (let k = 0; k < n; k++) {
+    const method = dv.getUint16(p + 10, true);
+    const csize = dv.getUint32(p + 20, true);
+    const nameLen = dv.getUint16(p + 28, true);
+    const extraLen = dv.getUint16(p + 30, true), cmtLen = dv.getUint16(p + 32, true);
+    const lho = dv.getUint32(p + 42, true);
+    const name = td.decode(u8.subarray(p + 46, p + 46 + nameLen));
+    if (method !== 0) throw new Error("bundle must be stored, not deflated: " + name);
+    const start = lho + 30 + dv.getUint16(lho + 26, true) + dv.getUint16(lho + 28, true);
+    files[name] = td.decode(u8.subarray(start, start + csize));
+    p += 46 + nameLen + extraLen + cmtLen;
+  }
+  return files;
+}
+const jsonl = (t) => t.split("\n").filter(Boolean).map(s => JSON.parse(s));
+function dataFromBundle(files) {
+  const meta = JSON.parse(files["meta.json"]);
+  const world = JSON.parse(files["world.json"]);
+  if (!world.owner0) throw new Error("world.json lacks territory history (owner0)");
+  const records = jsonl(files["journal.jsonl"]);
+  const chron = jsonl(files["chronicle.jsonl"]);
+  const sums = records.filter(r => r.type === "tick_summary");
+  const evTypes = ["ratchet", "hardening", "fusion", "unfusion", "liberation",
+                   "schism", "extinction"];
+  const flows = {};
+  for (const r of records)
+    if (r.type === "defection" && r.to != null) {
+      const k = `${Math.floor(r.tick / 20) * 20}|${r.culture}|${r.to}`;
+      flows[k] = (flows[k] || 0) + 1;
+    }
+  return {
+    seed: meta.seed, ticks: meta.ticks, grid: world.grid, biome: world.biome,
+    owner0: world.owner0, deltas: world.deltas || [], elevation: world.elevation,
+    water: world.water, rivers: world.rivers || [], configs: world.configs || {},
+    structures: world.structures || {}, cultures: world.cultures,
+    summaries: sums.map(s => ({tick: s.tick, c: Object.fromEntries(
+      Object.entries(s.cultures).map(([cid, c]) => [cid,
+        {pop: Math.round(c.pop), fused: !!c.fused, switching: c.switching !== false,
+         dom: c.domination, mean: c.mean, sal: c.salience || null,
+         fx: c.factions, cfg: c.dominant}]))})),
+    events2: records.filter(r => evTypes.concat("succession").includes(r.type))
+      .map(r => ({tick: r.tick, type: r.type, culture: r.culture, note: r.note,
+                  mechanism: r.mechanism, structure: r.structure,
+                  displaced: r.displaced})),
+    deliberations: records.filter(r => r.type === "deliberation" &&
+        ["encounter", "contradiction", "ratchet_crisis", "recovery"].includes(r.kind))
+      .map(r => ({tick: r.tick, culture: r.culture, kind: r.kind, stance: r.stance,
+                  speaker: r.speaker, text: r.text,
+                  other: (r.detail || {}).other, model: r.model})),
+    flows: Object.entries(flows).map(([k, n]) => {
+      const [t, a, b] = k.split("|").map(Number);
+      return {tick: t, from: a, to: b, n};
+    }).sort((x, y) => x.tick - y.tick),
+    feasts: records.filter(r => r.type === "feast" && r.other != null)
+      .map(r => ({tick: r.tick, a: r.culture, b: r.other})),
+    chronicle: chron.filter(c => evTypes.includes(c.event_type))
+      .map(c => ({tick: c.tick, type: c.event_type, author: c.author_name,
+                  medium: c.medium, text: c.text})),
+    margins: chron.map(c => ({tick: c.tick, author: c.author_name, medium: c.medium,
+                              text: c.text, surviving: c.surviving,
+                              redacted: !!c.redacted})),
+  };
+}
+addEventListener("dragover", e => e.preventDefault());
+addEventListener("drop", async e => {
+  e.preventDefault();
+  const f = e.dataTransfer.files[0];
+  if (!f) return;
+  try {
+    const files = readStoredZip(await f.arrayBuffer());
+    location.hash = "";
+    boot(dataFromBundle(files));
+  } catch (err) { alert("could not read bundle: " + err.message); }
+});
 </script>

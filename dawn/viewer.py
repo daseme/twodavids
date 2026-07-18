@@ -72,10 +72,15 @@ BUNDLE_VERSION = 1
 
 
 def write_bundle(run_dir: Path) -> Path:
-    """§6.3: zip the run's six files with a version stamp."""
+    """§6.3: zip the run's six files with a version stamp.
+
+    Stored, not deflated: the viewer reads bundles by drag-and-drop with a
+    ~30-line zip parser and no vendored inflate. Local disk is cheap; a
+    dependency in the twenty-year replay path is not.
+    """
     import zipfile
     out = run_dir / "bundle.zip"
-    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_STORED) as z:
         z.writestr("bundle.json", json.dumps(
             {"version": BUNDLE_VERSION, "files": list(BUNDLE_FILES)}))
         for name in BUNDLE_FILES:

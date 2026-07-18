@@ -16,8 +16,12 @@ succession non-event; encounters land on the frontier midpoint over a fire —
 defection walks and feast fires interpolated from the journal's flow records,
 chronicle attrition as margin ambience (doomed entries render crumbling),
 a day/night cycle, `dawn bundle` (§6.3), and `#t=N&play` deep links.
-Still to come: the full ANNALS shot grammar (cuts, shot variety, cooldown
-tuning), heraldic regalia unlock animation, drag-and-drop bundle loading.*
+The shot grammar frames each beat kind (ratchet overhead, liberation low
+and close, schism wide; long moves cut instead of touring; the crown pulses
+at fusion), and a dropped `bundle.zip` re-boots the viewer into any world —
+bundles are stored, not deflated, so the parser needs no vendored inflate.
+Still to come: interpolated camera paths between beats, sound, and the
+archaeologist mode of the almanac contract.*
 
 ## 0. The architecture in one sentence
 
