@@ -11,20 +11,37 @@ twenty-year replayability). Scaffold status per system is marked [SCAFFOLD]
 where the full treatment in VIEWER.md §§2–4 is still to come. -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>dawn — the annals, replayed</title>
+<!-- Named for the run, so two published viewers are told apart on sight. -->
+<title>dawn — the annals of __RUN__</title>
 <style>
   :root {
     --parchment: #efe4c9; --parchment-2: #e6d8b6; --ink: #2e2417;
     --ink-2: #6d5c41; --rule: #c9b78e; --accent: #8a3324;
+    --ease: cubic-bezier(0.2, 0, 0, 1);
+    --shadow-panel: 0 1px 2px rgba(10,7,4,0.50), 0 10px 30px rgba(10,7,4,0.45),
+                    inset 0 1px 0 rgba(255,246,224,0.35);
+    --shadow-chip: 0 1px 2px rgba(10,7,4,0.40), 0 4px 14px rgba(10,7,4,0.35);
   }
   * { margin: 0; box-sizing: border-box; }
   html, body { height: 100%; overflow: hidden; background: #191510;
     font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-    color: var(--ink); }
+    color: var(--ink); -webkit-font-smoothing: antialiased; }
+  ::selection { background: rgba(138,51,36,0.24); }
   #stage { position: absolute; inset: 0; }
-  .panel { position: absolute; background: var(--parchment);
-    border: 1px solid var(--rule); border-radius: 3px;
-    box-shadow: 0 2px 14px rgba(0,0,0,0.45), inset 0 0 40px rgba(160,130,70,0.12); }
+  .panel { position: absolute;
+    background: linear-gradient(180deg, var(--parchment), var(--parchment-2));
+    border: 1px solid var(--rule); border-radius: 6px;
+    box-shadow: var(--shadow-panel); }
+  @media (prefers-reduced-motion: no-preference) {
+    .panel { animation: panel-in 640ms var(--ease) both; }
+    #clock { animation-delay: 90ms; }
+    #legend { animation-delay: 170ms; }
+    #bar { animation: panel-in-x 640ms var(--ease) 250ms both; }
+  }
+  @keyframes panel-in { from { opacity: 0; transform: translateY(8px); } }
+  @keyframes panel-in-x { from { opacity: 0; transform: translateX(-50%) translateY(8px); } }
+  @keyframes card-in { from { opacity: 0; transform: translateY(8px); } }
+  @keyframes note-in { from { opacity: 0; transform: translateX(-50%) translateY(6px); } }
   #masthead { top: 14px; left: 14px; padding: 10px 16px 8px; }
   #masthead h1 { font-size: 17px; font-weight: 600; letter-spacing: 0.02em; }
   #masthead .sub { font-size: 11.5px; color: var(--ink-2); margin-top: 2px;
@@ -35,53 +52,69 @@ where the full treatment in VIEWER.md §§2–4 is still to come. -->
     text-transform: uppercase; color: var(--ink-2); }
   #beat { right: 14px; top: 84px; width: 320px; padding: 12px 15px;
     display: none; }
-  #beat.on { display: block; }
+  #beat.on { display: block; animation: card-in 420ms var(--ease); }
   #beat .kind { font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase;
     color: var(--accent); }
-  #beat .quote { font-size: 13.5px; line-height: 1.45; margin: 7px 0; }
+  #beat .quote { font-size: 13.5px; line-height: 1.45; margin: 7px 0; text-wrap: pretty; }
   #beat .cite { font-size: 11px; color: var(--ink-2); font-style: italic;
     border-top: 1px solid var(--rule); padding-top: 6px; }
   #bar { left: 50%; transform: translateX(-50%); bottom: 14px; width: min(760px, 92vw);
     padding: 9px 14px; display: flex; gap: 12px; align-items: center; }
   #bar button { font: inherit; font-size: 12px; background: var(--parchment-2);
-    color: var(--ink); border: 1px solid var(--rule); border-radius: 3px;
-    padding: 3px 12px; cursor: pointer; }
+    color: var(--ink); border: 1px solid var(--rule); border-radius: 4px;
+    padding: 4px 14px; cursor: pointer;
+    transition: background 140ms var(--ease), color 140ms var(--ease),
+                border-color 140ms var(--ease), transform 100ms var(--ease); }
   #bar button:hover { background: #dcc998; }
-  #scrub { flex: 1; accent-color: var(--accent); }
+  #bar button:active { transform: scale(0.96); }
+  #bar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #bar #play { background: var(--accent); color: var(--parchment);
+    border-color: rgba(46,36,23,0.35); min-width: 58px; }
+  #bar #play:hover { background: #9d4130; }
+  #scrub { flex: 1; accent-color: var(--accent); cursor: pointer; }
   #speed { font-size: 11px; color: var(--ink-2); min-width: 52px;
     text-align: right; font-variant-numeric: tabular-nums; }
   #help { position: absolute; left: 14px; bottom: 14px; font-size: 10.5px;
     color: #a2916f; text-shadow: 0 1px 2px #000; max-width: 195px; }
   #legend { left: 14px; top: 84px; width: 232px; padding: 9px 13px;
-    font-size: 12px; max-height: 50vh; overflow-y: auto; }
+    font-size: 12px; max-height: 50vh; overflow-y: auto;
+    scrollbar-width: thin; scrollbar-color: var(--rule) transparent; }
   #legend .p { display: flex; gap: 7px; align-items: baseline; cursor: pointer;
-    padding: 1px 0; }
-  #legend .p:hover { color: var(--accent); }
+    padding: 2px 6px; margin: 0 -6px; border-radius: 4px;
+    transition: color 120ms var(--ease), background 120ms var(--ease); }
+  #legend .p:hover { color: var(--accent); background: rgba(138,51,36,0.07); }
   #legend .p .sw { width: 9px; height: 9px; border-radius: 50%; flex: none;
-    align-self: center; }
+    align-self: center; box-shadow: 0 0 0 1px rgba(46,36,23,0.18); }
   #legend .p.gone { opacity: 0.4; text-decoration: line-through; }
   #margins { position: absolute; right: 14px; bottom: 64px; width: 270px;
     pointer-events: none; display: flex; flex-direction: column; gap: 6px; }
-  .marg { background: var(--parchment); border: 1px solid var(--rule);
-    border-radius: 2px; padding: 6px 9px; font-size: 11px; line-height: 1.4;
-    color: var(--ink); transition: opacity 1.2s;
-    box-shadow: 0 1px 6px rgba(0,0,0,0.35); }
+  .marg { background: linear-gradient(180deg, var(--parchment), var(--parchment-2));
+    border: 1px solid var(--rule);
+    border-radius: 3px; padding: 6px 9px; font-size: 11px; line-height: 1.4;
+    color: var(--ink); transition: opacity 1.2s var(--ease);
+    box-shadow: var(--shadow-chip); }
   .marg .who { font-style: italic; color: var(--ink-2); font-size: 10px; }
   .marg.doomed { color: #7d6a4e; background: #e8dcbd;
     -webkit-mask-image: linear-gradient(115deg, #000 55%, transparent 88%);
     mask-image: linear-gradient(115deg, #000 55%, transparent 88%); }
   .marg.redacted .txt { text-decoration: line-through 2px rgba(46,36,23,0.55); }
   #dossier { left: 14px; top: 84px; width: 300px; padding: 11px 14px;
-    display: none; max-height: 74vh; overflow-y: auto; }
-  #dossier.on { display: block; }
+    display: none; max-height: 74vh; overflow-y: auto;
+    scrollbar-width: thin; scrollbar-color: var(--rule) transparent; }
+  #dossier.on { display: block; animation: card-in 360ms var(--ease); }
   #dossier h2 { font-size: 15px; font-weight: 600; display: flex;
     align-items: center; gap: 7px; }
-  #dossier h2 .sw { width: 11px; height: 11px; border-radius: 50%; }
+  #dossier h2 .sw { width: 11px; height: 11px; border-radius: 50%;
+    box-shadow: 0 0 0 1px rgba(46,36,23,0.18); }
   #dossier .close { margin-left: auto; cursor: pointer; color: var(--ink-2);
-    font-size: 15px; line-height: 1; }
+    font-size: 15px; line-height: 1; padding: 6px 8px; margin: -4px -8px 0 0;
+    border-radius: 4px;
+    transition: color 120ms var(--ease), background 120ms var(--ease); }
+  #dossier .close:hover { color: var(--accent); background: rgba(138,51,36,0.08); }
   #dossier .line { font-size: 11px; color: var(--ink-2); margin: 3px 0 8px; }
   #dossier .sketch { font-size: 12px; line-height: 1.5; margin: 8px 0;
-    padding: 7px 9px; background: var(--parchment-2); border-radius: 2px; }
+    padding: 7px 9px; background: var(--parchment-2); border-radius: 3px;
+    box-shadow: inset 0 1px 3px rgba(46,36,23,0.10); text-wrap: pretty; }
   #dossier .axes { margin: 8px 0 4px; }
   #dossier .ax { display: grid; grid-template-columns: 78px 1fr 78px;
     align-items: center; gap: 6px; font-size: 8.5px; color: var(--ink-2);
@@ -107,8 +140,11 @@ where the full treatment in VIEWER.md §§2–4 is still to come. -->
     bottom: 66px; max-width: 620px; text-align: center; font-size: 11px;
     line-height: 1.5; color: #e4d5b2; font-style: italic; display: none;
     background: rgba(25,21,16,0.82); border: 1px solid rgba(201,183,142,0.25);
-    border-radius: 3px; padding: 6px 14px; backdrop-filter: blur(2px); }
-  #modenote.on { display: block; }
+    border-radius: 4px; padding: 6px 14px; backdrop-filter: blur(2px); }
+  #modenote.on { display: block; animation: note-in 400ms var(--ease); }
+  @media (prefers-reduced-motion: reduce) {
+    #beat.on, #dossier.on, #modenote.on { animation: none; }
+  }
 </style>
 
 <div id="stage"></div>
@@ -175,6 +211,95 @@ function colorOf(cid, l = 0.5) {
   return new THREE.Color().setHSL(hueOf(cid) / 360, 0.5, l);
 }
 
+// ---- deterministic detail noise (the elaboration rule, §0) ------------------
+// The record carries one elevation value per cell; everything finer is the
+// record's silence, which the viewer may decorate — deterministically, so the
+// same bundle always wears the same ridgelines. Integer hashing only; no
+// Math.random anywhere in the painter.
+const NSEED = Math.imul(DATA.seed | 0, 1013904223) | 0;
+function hash2(ix, iy, s) {
+  let h = Math.imul(ix | 0, 374761393) ^ Math.imul(iy | 0, 668265263) ^ Math.imul(s | 0, -1640531527);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+const smooth01 = (t) => t * t * (3 - 2 * t);
+function vnoise(x, y, s) {
+  const ix = Math.floor(x), iy = Math.floor(y);
+  const fx = smooth01(x - ix), fy = smooth01(y - iy);
+  const a = hash2(ix, iy, s), b = hash2(ix + 1, iy, s),
+        c = hash2(ix, iy + 1, s), d = hash2(ix + 1, iy + 1, s);
+  return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
+}
+function fbm(x, y, s) {
+  return vnoise(x, y, s) * 0.55
+       + vnoise(x * 2.13 + 7.3, y * 2.13 + 3.1, s + 11) * 0.28
+       + vnoise(x * 4.71 + 13.7, y * 4.71 + 9.2, s + 23) * 0.17;
+}
+
+// ---- small geometry forge ----------------------------------------------------
+// Buildings, ships and trees are single meshes (the slot system morphs one
+// geometry per element), so compound forms are merged here with their colors
+// baked into a vertex-color attribute. Materials with vertexColors:true pick
+// the baked colors up, tinted by material.color; materials without it ignore
+// the attribute entirely.
+// Baked colours are *relative*: a paintbox entry is divided by a mid-grey
+// reference before it reaches the attribute, so what lands in the buffer is a
+// multiplier around 1.0 rather than an absolute colour. That is what lets one
+// geometry serve every culture — material.color still carries the identity hue
+// (or the neutral stone/straw of an unattested form), and the vertex colours
+// only say which parts of the form are timber, thatch or canvas relative to it.
+// The reference sits near the brightest paintbox entry, not at mid-grey, so
+// every multiplier lands in roughly 0.4–1.2: dark timber genuinely darkens, and
+// canvas or pale plaster lifts a little without clipping the tint to white.
+const SHADE_REF = 0.75;
+const shade = (c) => [c[0] / SHADE_REF, c[1] / SHADE_REF, c[2] / SHADE_REF];
+
+function bake(geo, c) {
+  const n = geo.attributes.position.count, s = shade(c), cs = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { cs[i * 3] = s[0]; cs[i * 3 + 1] = s[1]; cs[i * 3 + 2] = s[2]; }
+  geo.setAttribute("color", new THREE.BufferAttribute(cs, 3));
+  return geo;
+}
+const _mp = {m4: new THREE.Matrix4(), nm: new THREE.Matrix3(), q: new THREE.Quaternion(),
+             e: new THREE.Euler(), v: new THREE.Vector3(), n: new THREE.Vector3(),
+             p: new THREE.Vector3(), s: new THREE.Vector3()};
+function mergeParts(parts) {
+  const vs = [], ns = [], cs = [];
+  for (const part of parts) {
+    const g = part.g.index ? part.g.toNonIndexed() : part.g;
+    const p = _mp.p, s = _mp.s, q = _mp.q, e = _mp.e, m4 = _mp.m4;
+    p.set(...(part.p || [0, 0, 0]));
+    const sc = part.s === undefined ? [1, 1, 1] : (Array.isArray(part.s) ? part.s : [part.s, part.s, part.s]);
+    s.set(...sc);
+    e.set(...(part.r || [0, 0, 0])); q.setFromEuler(e);
+    m4.compose(p, q, s);
+    _mp.nm.getNormalMatrix(m4);
+    const pa = g.attributes.position, na = g.attributes.normal;
+    for (let i = 0; i < pa.count; i++) {
+      _mp.v.fromBufferAttribute(pa, i).applyMatrix4(m4);
+      vs.push(_mp.v.x, _mp.v.y, _mp.v.z);
+      _mp.n.fromBufferAttribute(na, i).applyMatrix3(_mp.nm).normalize();
+      ns.push(_mp.n.x, _mp.n.y, _mp.n.z);
+      const s = shade(part.c);
+      cs.push(s[0], s[1], s[2]);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(vs, 3));
+  geo.setAttribute("normal", new THREE.Float32BufferAttribute(ns, 3));
+  geo.setAttribute("color", new THREE.Float32BufferAttribute(cs, 3));
+  return geo;
+}
+// The paintbox for everything built: warm timber, thatch, hide, stone, slate.
+const C = {
+  timber: [0.40, 0.29, 0.17], plank: [0.55, 0.42, 0.25], thatch: [0.70, 0.60, 0.35],
+  hide: [0.74, 0.65, 0.51], hideD: [0.58, 0.49, 0.37], stone: [0.55, 0.53, 0.49],
+  stoneD: [0.40, 0.38, 0.35], slate: [0.32, 0.34, 0.39], pale: [0.85, 0.82, 0.72],
+  wood: [0.33, 0.25, 0.15], woodD: [0.24, 0.18, 0.11], canvas: [0.90, 0.85, 0.70],
+  emberC: [0.90, 0.42, 0.13], goldC: [0.82, 0.64, 0.18], bone: [0.84, 0.80, 0.68],
+};
+
 const G = DATA.grid, T = DATA.ticks;
 
 // ---- territory reconstruction: owner0 + deltas ------------------------------
@@ -223,8 +348,35 @@ const HEIGHT = 7.5;
 const terrainGeo = new THREE.PlaneGeometry(G, G, G - 1, G - 1);
 terrainGeo.rotateX(-Math.PI / 2);
 const pos = terrainGeo.attributes.position;
-const heightAt = (x, y) =>
+const baseHeight = (x, y) =>
   DATA.water[x][y] ? -0.06 : (DATA.elevation[x][y] / 1000) * HEIGHT;
+// The elaboration rule (§0): the record gives one elevation per cell, so the
+// ridgelines between cells are its silence, not its claim. We decorate that
+// silence deterministically — and only inland. Displacement fades to nothing
+// within a cell of water, so shorelines stay exactly where the record put
+// them, and heightAt() (which everything else places against) stays truthful
+// to the decorated surface rather than the flat one.
+const RELIEF = 0.42;
+function landAround(x, y) {
+  let n = 0;
+  for (let dx = -1; dx <= 1; dx++)
+    for (let dy = -1; dy <= 1; dy++) {
+      const cx = x + dx, cy = y + dy;
+      if (cx < 0 || cy < 0 || cx >= G || cy >= G || DATA.water[cx][cy]) continue;
+      n++;
+    }
+  return n / 9;
+}
+const relief = Array.from({length: G}, (_, x) => {
+  const col = new Float32Array(G);
+  for (let y = 0; y < G; y++) {
+    if (DATA.water[x][y]) continue;
+    const shore = Math.max(0, landAround(x, y) * 1.5 - 0.5);
+    col[y] = (fbm(x * 0.31, y * 0.31, NSEED) - 0.5) * RELIEF * shore;
+  }
+  return col;
+});
+const heightAt = (x, y) => baseHeight(x, y) + (relief[x] ? relief[x][y] : 0);
 for (let i = 0; i < pos.count; i++) {
   const x = i % G, y = Math.floor(i / G);
   pos.setXYZ(i, x - G / 2, heightAt(x, y), y - G / 2);
@@ -334,37 +486,126 @@ function sitesOf(cid, tick) {
 // track, the monumental lodge from charisma, guarded granaries from hoard
 // pooling, keep + regalia + processional axis from fusion — a ratcheted
 // lineage watches itself start looking like ANNALS, late and contingently.
+// The built forms. Each is merged from parts by mergeParts() and keeps the
+// footprint and vertical centring of the primitive it replaces, so the layout
+// arithmetic, the LIFT table and slotPos() all stay valid — this is a change of
+// silhouette, not of where anything stands. Forms carrying identity (tent, hut,
+// lodge) keep pale walls, because their material.color is the culture's hue and
+// a wall is where a people is most legible; roofs and frames take the paintbox.
+const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+const cyl = (rt, rb, h, s) => new THREE.CylinderGeometry(rt, rb, h, s);
+const cone = (r, h, s) => new THREE.ConeGeometry(r, h, s);
+const R45 = [0, Math.PI / 4, 0];
+// stilts, merlons, kerbstones: the same part repeated around a centre
+const ring = (n, r, g, c, y, s, phase = 0) =>
+  Array.from({length: n}, (_, i) => {
+    const a = phase + (i / n) * Math.PI * 2;
+    return {g, c, s, p: [Math.cos(a) * r, y, Math.sin(a) * r]};
+  });
+
 const GEO = {
-  tent: new THREE.ConeGeometry(0.16, 0.3, 5),
-  hut: new THREE.BoxGeometry(0.22, 0.2, 0.22),
-  stone: new THREE.BoxGeometry(0.26, 0.12, 0.26),
-  lodge: new THREE.BoxGeometry(0.55, 0.42, 0.55),
-  keep: new THREE.BoxGeometry(0.5, 0.9, 0.5),
+  // hide cone over crossed poles that overshoot the apex
+  tent: mergeParts([
+    {g: cone(0.16, 0.3, 5), c: C.hide},
+    {g: cyl(0.008, 0.008, 0.42, 3), c: C.wood, p: [0.03, 0.03, 0], r: [0, 0, 0.16]},
+    {g: cyl(0.008, 0.008, 0.42, 3), c: C.wood, p: [-0.03, 0.03, 0], r: [0, 0, -0.16]},
+  ]),
+  // walls a people can be recognised by, under a thatched pyramid
+  hut: mergeParts([
+    {g: box(0.22, 0.13, 0.22), c: C.pale, p: [0, -0.035, 0]},
+    {g: box(0.235, 0.02, 0.235), c: C.timber, p: [0, 0.035, 0]},
+    {g: cone(0.185, 0.13, 4), c: C.thatch, p: [0, 0.105, 0], r: R45},
+    {g: box(0.05, 0.09, 0.02), c: C.woodD, p: [0, -0.055, 0.11]},
+  ]),
+  // a low plinth with uprights: the first thing anyone bothered to leave
+  stone: mergeParts([
+    {g: box(0.26, 0.05, 0.26), c: C.stoneD, p: [0, -0.035, 0]},
+    ...ring(3, 0.085, box(0.055, 0.16, 0.055), C.stone, 0.02, 1, 0.4),
+  ]),
+  // the great house: plank walls, a heavy gable, a ridge beam along the top
+  lodge: mergeParts([
+    {g: box(0.55, 0.26, 0.55), c: C.pale, p: [0, -0.08, 0]},
+    {g: box(0.57, 0.03, 0.57), c: C.timber, p: [0, 0.06, 0]},
+    {g: cone(0.44, 0.22, 4), c: C.thatch, p: [0, 0.185, 0], r: R45},
+    {g: box(0.035, 0.03, 0.52), c: C.woodD, p: [0, 0.295, 0]},
+    {g: box(0.06, 0.2, 0.03), c: C.woodD, p: [0, -0.11, 0.275]},
+  ]),
+  // statal architecture: a battered base, a stone shaft, merlons on top
+  keep: mergeParts([
+    {g: box(0.56, 0.12, 0.56), c: C.stoneD, p: [0, -0.39, 0]},
+    {g: box(0.5, 0.66, 0.5), c: C.stone, p: [0, 0, 0]},
+    {g: box(0.53, 0.035, 0.53), c: C.stoneD, p: [0, 0.34, 0]},
+    ...ring(4, 0.19, box(0.11, 0.1, 0.11), C.stone, 0.41, 1, Math.PI / 4),
+    {g: box(0.09, 0.16, 0.02), c: C.slate, p: [0, -0.19, 0.25]},
+  ]),
   banner: new THREE.PlaneGeometry(0.16, 0.26),
-  post: new THREE.CylinderGeometry(0.02, 0.02, 0.34, 4),
-  tower: new THREE.CylinderGeometry(0.05, 0.08, 0.55, 5),
-  granary: new THREE.CylinderGeometry(0.1, 0.12, 0.24, 6),
-  hearth: new THREE.CylinderGeometry(0.16, 0.16, 0.03, 8),
-  shrine: new THREE.ConeGeometry(0.08, 0.4, 4),
-  trophy: new THREE.CylinderGeometry(0.015, 0.015, 0.42, 3),
-  plaza: new THREE.CylinderGeometry(0.5, 0.5, 0.015, 12),
-  axis: new THREE.BoxGeometry(0.14, 0.012, 1.6),
-  crown: new THREE.TorusGeometry(0.09, 0.025, 6, 10),
+  post: bake(new THREE.CylinderGeometry(0.02, 0.02, 0.34, 4), C.wood),
+  // watchtower: a tapered shaft, a lookout platform, a small cap
+  tower: mergeParts([
+    {g: cyl(0.05, 0.085, 0.42, 5), c: C.timber, p: [0, -0.06, 0]},
+    {g: cyl(0.115, 0.115, 0.035, 5), c: C.plank, p: [0, 0.17, 0]},
+    {g: cone(0.115, 0.12, 5), c: C.thatch, p: [0, 0.25, 0]},
+  ]),
+  // raised off the ground on stilts, because a hoard has to be kept dry
+  granary: mergeParts([
+    ...ring(4, 0.075, cyl(0.013, 0.013, 0.09, 4), C.woodD, -0.075, 1),
+    {g: cyl(0.115, 0.105, 0.015, 6), c: C.plank, p: [0, -0.025, 0]},
+    {g: cyl(0.1, 0.115, 0.13, 6), c: C.pale, p: [0, 0.045, 0]},
+    {g: cone(0.135, 0.1, 6), c: C.thatch, p: [0, 0.155, 0]},
+  ]),
+  // a ring of stones around a bed of embers
+  hearth: mergeParts([
+    {g: cyl(0.105, 0.105, 0.034, 8), c: C.emberC, p: [0, 0, 0]},
+    ...ring(8, 0.135, box(0.055, 0.03, 0.045), C.stoneD, 0, 1),
+  ]),
+  // stepped base, tapered spire, a small bright finial
+  shrine: mergeParts([
+    {g: box(0.17, 0.045, 0.17), c: C.stoneD, p: [0, -0.175, 0]},
+    {g: box(0.125, 0.04, 0.125), c: C.stone, p: [0, -0.132, 0]},
+    {g: cone(0.075, 0.3, 4), c: C.pale, p: [0, 0.04, 0]},
+    {g: new THREE.OctahedronGeometry(0.028), c: C.goldC, p: [0, 0.205, 0]},
+  ]),
+  trophy: bake(new THREE.CylinderGeometry(0.015, 0.015, 0.42, 3), C.bone),
+  plaza: bake(new THREE.CylinderGeometry(0.5, 0.5, 0.015, 12), C.pale),
+  axis: bake(new THREE.BoxGeometry(0.14, 0.012, 1.6), C.pale),
+  crown: bake(new THREE.TorusGeometry(0.09, 0.025, 6, 10), C.goldC),
   person: new THREE.CapsuleGeometry(0.018, 0.05, 2, 4),
-  mound: new THREE.SphereGeometry(0.17, 6, 4, 0, 6.3, 0, 1.2),
-  boat: new THREE.ConeGeometry(0.09, 0.34, 4),
-  jetty: new THREE.BoxGeometry(0.13, 0.045, 0.62),
+  // a dome with a kerb: the shape a settlement leaves when nobody is left
+  mound: mergeParts([
+    {g: new THREE.SphereGeometry(0.17, 8, 5, 0, 6.3, 0, 1.2), c: C.hideD},
+    ...ring(7, 0.185, box(0.06, 0.045, 0.05), C.stoneD, 0.01, 1),
+  ]),
+  // bow along +Y, mast along -Z: the pool lays the hull flat with rotation.x
+  // and steers with rotation.z, so those two axes are the hull's own frame.
+  boat: mergeParts([
+    {g: cone(0.075, 0.34, 4), c: C.wood, r: R45},
+    {g: box(0.1, 0.16, 0.03), c: C.plank, p: [0, -0.02, -0.035]},
+    {g: cyl(0.008, 0.008, 0.2, 4), c: C.woodD, p: [0, 0.0, -0.12], r: [Math.PI / 2, 0, 0]},
+    // -Z is up once the pool applies rotation.x, so the sail's apex has to be
+    // turned the other way or it hangs below the hull.
+    {g: cone(0.075, 0.17, 3), c: C.canvas, p: [0, 0.02, -0.13], r: [-Math.PI / 2, 0, 0]},
+  ]),
+  // deck planks over piles driven into the shallows
+  jetty: mergeParts([
+    {g: box(0.13, 0.028, 0.62), c: C.plank, p: [0, 0.012, 0]},
+    ...ring(2, 0.24, cyl(0.014, 0.014, 0.08, 4), C.woodD, -0.03, 1, Math.PI / 2),
+  ]),
 };
+// Every material here dresses a baked geometry, so all of them read vertex
+// colours: the tint below says what register the form is in (timber, stone,
+// regalia, unattested), the baked colours say which part of it is which.
+// MAT.wood is lighter than a plank looks on its own because the paintbox now
+// carries that darkness — the tint only has to stay out of the way.
 const MAT = {
-  wood: new THREE.MeshLambertMaterial({color: 0x4a3b28}),
-  straw: new THREE.MeshLambertMaterial({color: 0xb59d5e}),
-  stoneM: new THREE.MeshLambertMaterial({color: 0x8e8a80}),
-  white: new THREE.MeshLambertMaterial({color: 0xd8d2c0}),
-  gold: new THREE.MeshLambertMaterial({color: 0xc9a227, emissive: 0x584406}),
-  ember: new THREE.MeshLambertMaterial({color: 0x8c4a1d, emissive: 0x7a3208}),
-  pale: new THREE.MeshLambertMaterial({color: 0xcabf9f}),
+  wood: new THREE.MeshLambertMaterial({color: 0x8a7a63, vertexColors: true}),
+  straw: new THREE.MeshLambertMaterial({color: 0xb59d5e, vertexColors: true}),
+  stoneM: new THREE.MeshLambertMaterial({color: 0x8e8a80, vertexColors: true}),
+  white: new THREE.MeshLambertMaterial({color: 0xd8d2c0, vertexColors: true}),
+  gold: new THREE.MeshLambertMaterial({color: 0xc9a227, emissive: 0x584406, vertexColors: true}),
+  ember: new THREE.MeshLambertMaterial({color: 0x8c4a1d, emissive: 0x7a3208, vertexColors: true}),
+  pale: new THREE.MeshLambertMaterial({color: 0xcabf9f, vertexColors: true}),
   // Unattested: no identity colour — we do not know whose this was.
-  unknown: new THREE.MeshLambertMaterial({color: 0x6b6459}),
+  unknown: new THREE.MeshLambertMaterial({color: 0x6b6459, vertexColors: true}),
 };
 const groups = new Map();   // cid -> {group, key}
 const groundY = (x, y) => heightAt(Math.round(x), Math.round(y));
@@ -791,11 +1032,16 @@ function ensureGroup(cid, conf) {
   if (g) scene.remove(g.group);
   const grp = new THREE.Group();
   const known = conf === undefined || conf === 2;
+  // Identity materials tint baked forms too: the culture's hue lands on the
+  // pale walls at full strength and shades the timber and thatch around them,
+  // so a settlement reads as one people's work without going monochrome.
   const mats = {
     id: new THREE.MeshLambertMaterial(
-      {color: conf === 0 ? 0x6b6459 : colorOf(+cid, known ? 0.42 : 0.36)}),
+      {color: conf === 0 ? 0x6b6459 : colorOf(+cid, known ? 0.42 : 0.36),
+       vertexColors: true}),
     idDark: new THREE.MeshLambertMaterial(
-      {color: conf === 0 ? 0x5a544a : colorOf(+cid, known ? 0.28 : 0.24)}),
+      {color: conf === 0 ? 0x5a544a : colorOf(+cid, known ? 0.28 : 0.24),
+       vertexColors: true}),
   };
   g = {group: grp, slots: new Map(), mats, matKey};
   groups.set(cid, g);
@@ -916,7 +1162,8 @@ for (let i = 0; i < 36; i++) {
 // scenery here, so a crossing must read as a crossing.
 const boatPool = [];
 for (let i = 0; i < 10; i++) {
-  const m = new THREE.Mesh(GEO.boat, new THREE.MeshLambertMaterial({color: 0xffffff}));
+  const m = new THREE.Mesh(GEO.boat,
+    new THREE.MeshLambertMaterial({color: 0xffffff, vertexColors: true}));
   m.rotation.x = Math.PI / 2;
   m.visible = false; scene.add(m); boatPool.push(m);
 }
@@ -955,7 +1202,8 @@ function updateLandings(tick) {
 const firePool = [];
 for (let i = 0; i < 4; i++) {
   const g = new THREE.Group();
-  g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.04, 6), MAT.wood));
+  g.add(new THREE.Mesh(
+    bake(new THREE.CylinderGeometry(0.07, 0.09, 0.04, 6), C.woodD), MAT.wood));
   const flame = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.2, 5), MAT.fire);
   flame.position.y = 0.12; g.add(flame);
   const light = new THREE.PointLight(0xff9040, 1.6, 3.5);

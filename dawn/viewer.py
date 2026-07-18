@@ -15,6 +15,7 @@ template, deterministically from bundle + seed, and is evidence-free
 
 from __future__ import annotations
 
+import html
 import json
 from importlib import resources
 from pathlib import Path
@@ -149,7 +150,7 @@ def write_viewer(run_dir: Path) -> Path:
     template = resources.files("dawn").joinpath("viewer_template.html").read_text()
     vendor = resources.files("dawn").joinpath("vendor")
     # The r178 build is split: three.module.min.js imports ./three.core.min.js.
-    # Both are embedded; the template stitches them with blob URLs at load.
+    # Both are embedded, their module wiring resolved here in _inline_three.
     core, three = _inline_three(
         vendor.joinpath("three.core.min.js").read_text(),
         vendor.joinpath("three.module.min.js").read_text())
@@ -159,7 +160,11 @@ def write_viewer(run_dir: Path) -> Path:
     out = run_dir / "viewer.html"
     # Placeholder names must not occur in the three.js sources — the core
     # build contains the literal "__THREE__" (its multiple-instance guard).
-    out.write_text(template.replace("__THREE_CORE_JS__", core)
+    # The run name goes in first, while the string is still only the template:
+    # after the vendored sources land there is a megabyte of minified JS for a
+    # short placeholder to collide with.
+    out.write_text(template.replace("__RUN__", html.escape(run_dir.name))
+                           .replace("__THREE_CORE_JS__", core)
                            .replace("__THREE_MODULE_JS__", three)
                            .replace("__DATA__", payload))
     return out
