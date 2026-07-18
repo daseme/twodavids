@@ -50,6 +50,16 @@ def build_viewer_data(run_dir: Path) -> dict:
         if r["type"] in ("ratchet", "hardening", "fusion", "unfusion",
                          "liberation", "schism", "extinction", "succession")
     ]
+    # The margins: every entry as it was written, with its eventual fate —
+    # chronicle attrition rendered as ambience (VIEWER.md §4). An entry that
+    # will not survive existed at the moment it was made; the film shows it
+    # fading. Redaction and survival are facts of the record, not inventions.
+    data["margins"] = [
+        {"tick": c["tick"], "author": c["author_name"], "medium": c["medium"],
+         "text": c["text"], "surviving": c["surviving"],
+         "redacted": c.get("redacted", False)}
+        for c in (json.loads(l) for l in (run_dir / "chronicle.jsonl").open())
+    ]
     scars_path = run_dir / "scars.jsonl"
     data["scars"] = ([json.loads(l) for l in scars_path.open()]
                      if scars_path.exists() else [])

@@ -60,6 +60,17 @@ where the full treatment in VIEWER.md §§2–4 is still to come. -->
   #legend .p .sw { width: 9px; height: 9px; border-radius: 50%; flex: none;
     align-self: center; }
   #legend .p.gone { opacity: 0.4; text-decoration: line-through; }
+  #margins { position: absolute; right: 14px; bottom: 64px; width: 270px;
+    pointer-events: none; display: flex; flex-direction: column; gap: 6px; }
+  .marg { background: var(--parchment); border: 1px solid var(--rule);
+    border-radius: 2px; padding: 6px 9px; font-size: 11px; line-height: 1.4;
+    color: var(--ink); transition: opacity 1.2s;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.35); }
+  .marg .who { font-style: italic; color: var(--ink-2); font-size: 10px; }
+  .marg.doomed { color: #7d6a4e; background: #e8dcbd;
+    -webkit-mask-image: linear-gradient(115deg, #000 55%, transparent 88%);
+    mask-image: linear-gradient(115deg, #000 55%, transparent 88%); }
+  .marg.redacted .txt { text-decoration: line-through 2px rgba(46,36,23,0.55); }
 </style>
 
 <div id="stage"></div>
@@ -77,6 +88,7 @@ where the full treatment in VIEWER.md §§2–4 is still to come. -->
   <div class="quote" id="beat-quote"></div>
   <div class="cite" id="beat-cite"></div>
 </div>
+<div id="margins"></div>
 <div class="panel" id="bar">
   <button id="play">play</button>
   <input id="scrub" type="range" min="0" value="0" step="1">
@@ -534,6 +546,96 @@ function updatePeople() {
     if (!groups.has(cid)) { scene.remove(pg); peopleGroups.delete(cid); }
 }
 
+// ---- the moving world: defection walks and feast fires (§4) -----------------
+// Defections are families walking a hospitality route; feasts are the
+// boundary softening — both rendered from the journal's own flow/feast
+// records, positions interpolated between the two peoples' anchors. Pools
+// are reused every frame, so seeking is free and deterministic.
+MAT.fire = new THREE.MeshLambertMaterial({color: 0xd96f2b, emissive: 0xc75c14});
+const WALK = 24, FEAST_GLOW = 8;
+const anchorOf = (cid, tick) => { const s = sitesOf(cid, tick); return s && s.anchor; };
+const walkerPool = [];
+for (let i = 0; i < 36; i++) {
+  const m = new THREE.Mesh(GEO.person, new THREE.MeshLambertMaterial({color: 0xffffff}));
+  m.visible = false; scene.add(m); walkerPool.push(m);
+}
+const firePool = [];
+for (let i = 0; i < 4; i++) {
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.04, 6), MAT.wood));
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.2, 5), MAT.fire);
+  flame.position.y = 0.12; g.add(flame);
+  const light = new THREE.PointLight(0xff9040, 1.6, 3.5);
+  light.position.y = 0.3; g.add(light);
+  g.visible = false; scene.add(g); firePool.push(g);
+}
+const va = new THREE.Vector3(), vb = new THREE.Vector3();
+let beatFire = null;   // [a, b] culture pair while an encounter card is up
+function updateMotion(t, now) {
+  const tick = Math.floor(t);
+  let wi = 0, fi = 0;
+  for (const f of DATA.flows) {
+    if (f.tick > tick) break;
+    if (f.tick + WALK <= t || wi >= walkerPool.length) continue;
+    const A = anchorOf(f.from, tick), B = anchorOf(f.to, tick);
+    if (!A || !B) continue;
+    const u = (t - f.tick) / WALK;
+    for (let j = 0; j < Math.min(f.n, 3) && wi < walkerPool.length; j++) {
+      const m = walkerPool[wi++];
+      const uu = Math.max(0, Math.min(1, u - j * 0.05));
+      const x = A[0] + (B[0] - A[0]) * uu, y = A[1] + (B[1] - A[1]) * uu;
+      toWorld(x + Math.sin(uu * 9 + j) * 0.15, y + Math.cos(uu * 7 + j) * 0.15, m.position);
+      m.position.y += 0.05;
+      m.material.color.copy(colorOf(f.from, 0.6));
+      m.visible = true;
+    }
+  }
+  const lit = [];
+  for (const f of DATA.feasts) {
+    if (f.tick > tick) break;
+    if (f.tick + FEAST_GLOW > t) lit.push([f.a, f.b]);
+  }
+  if (beatFire) lit.push(beatFire);
+  for (const [a, b] of lit.slice(-firePool.length)) {
+    const A = anchorOf(a, tick), B = anchorOf(b, tick);
+    if (!A || !B) continue;
+    const g = firePool[fi++];
+    toWorld((A[0] + B[0]) / 2, (A[1] + B[1]) / 2, g.position);
+    g.position.y += 0.03;
+    g.children[1].scale.setScalar(0.85 + 0.3 * Math.abs(Math.sin(now * 0.011)));
+    g.visible = true;
+  }
+  for (; wi < walkerPool.length; wi++) walkerPool[wi].visible = false;
+  for (; fi < firePool.length; fi++) firePool[fi].visible = false;
+}
+
+// ---- the margins: chronicle attrition as ambience (§4) ----------------------
+// Entries appear as written; ones the record will lose render already
+// crumbling at the edge, and redacted ones carry the strike. Honest gaps.
+const marginsEl = document.getElementById("margins");
+const margins = DATA.margins.slice().sort((a, b) => a.tick - b.tick);
+let marginsKey = -1;
+function updateMargins(tick) {
+  if (tick === marginsKey) return;
+  marginsKey = tick;
+  let hi = margins.findIndex(m => m.tick > tick);
+  if (hi < 0) hi = margins.length;
+  const recent = margins.slice(Math.max(0, hi - 3), hi)
+                        .filter(m => tick - m.tick < 40);
+  marginsEl.innerHTML = "";
+  for (const m of recent) {
+    const d = document.createElement("div");
+    d.className = "marg" + (m.surviving ? "" : " doomed") + (m.redacted ? " redacted" : "");
+    d.style.opacity = Math.max(0.25, 1 - (tick - m.tick) / 44).toFixed(2);
+    const who = document.createElement("div"); who.className = "who";
+    who.textContent = `${m.author}, ${m.medium} · year ${Math.floor(m.tick / 4)}`;
+    const tx = document.createElement("div"); tx.className = "txt";
+    tx.textContent = m.text.length > 150 ? m.text.slice(0, 148) + "…" : m.text;
+    d.append(who, tx);
+    marginsEl.appendChild(d);
+  }
+}
+
 // ---- camera: spring-damper rig with curved altitude path (§2) ---------------
 const cam = {
   focus: new THREE.Vector3(0, 0, 0), fTarget: new THREE.Vector3(0, 0, 0),
@@ -603,7 +705,8 @@ for (const e of DATA.events2 || DATA.events) {
 }
 for (const d of DATA.deliberations)
   beats.push({tick: d.tick, kind: d.kind, culture: d.culture, quote: d.text,
-              speaker: d.speaker, stance: d.stance, model: d.model});
+              speaker: d.speaker, stance: d.stance, model: d.model,
+              other: d.other});
 beats.sort((a, b) => a.tick - b.tick || (PRIORITY[b.kind] || 0) - (PRIORITY[a.kind] || 0));
 const chronMap = new Map();
 for (const c of DATA.chronicle) {
@@ -617,6 +720,7 @@ function seekBeats(tick) {
   beatPtr = beats.findIndex(b => b.tick > tick);
   if (beatPtr < 0) beatPtr = beats.length;
   beatEl.classList.remove("on");
+  beatFire = null;
 }
 function directorStep(tick, now) {
   while (beatPtr < beats.length && beats[beatPtr].tick <= tick) {
@@ -624,7 +728,16 @@ function directorStep(tick, now) {
     if ((PRIORITY[b.kind] || 0) < 2 || now < beatCool) continue;
     beatCool = now + 4500;
     beatShownAt = now;
-    if (b.culture != null) flyTo(b.culture, tick);
+    // The encounter shot: two delegations across a frontier fire — the
+    // camera lands on the border midpoint, not either people's ground.
+    if (b.kind === "encounter" && b.other != null && b.culture != null) {
+      const A = anchorOf(b.culture, tick), B = anchorOf(b.other, tick);
+      if (A && B) {
+        toWorld((A[0] + B[0]) / 2, (A[1] + B[1]) / 2, cam.fTarget);
+        cam.dTarget = G * 0.22;
+        beatFire = [b.culture, b.other];
+      }
+    } else if (b.culture != null) flyTo(b.culture, tick);
     const chron = chronMap.get(`${b.tick}|${b.kind}`);
     const quote = (chron && chron.text) || b.quote || GLOSSES[b.kind]
                   || "(the record is silent)";
@@ -640,8 +753,10 @@ function directorStep(tick, now) {
       who + (b.model && !b.model.startsWith("stub") ? ` · argued live (${b.model})` : "");
     beatEl.classList.add("on");
   }
-  if (beatEl.classList.contains("on") && now - beatShownAt > 9000)
+  if (beatEl.classList.contains("on") && now - beatShownAt > 9000) {
     beatEl.classList.remove("on");
+    beatFire = null;
+  }
 }
 
 // ---- legend -----------------------------------------------------------------
@@ -718,10 +833,16 @@ function frame(now) {
     if (curTick >= T - 1) { playing = false; playBtn.textContent = "play"; }
   }
   directorStep(Math.floor(curTick), now);
+  updateMotion(curTick, now);
+  updateMargins(Math.floor(curTick));
   // Day/night as a slow sun swing while playing (§2) — ambience, not record.
   if (playing) {
-    const th = (curTick % 8) / 8 * Math.PI * 2;
-    sun.position.set(Math.cos(th) * G * 0.6, G * 0.55 + Math.sin(th) * G * 0.2, Math.sin(th) * G * 0.4);
+    const th = (curTick % 8) / 8 * Math.PI * 2, dayness = 0.5 + 0.5 * Math.sin(th);
+    sun.position.set(Math.cos(th) * G * 0.6,
+                     G * (0.18 + 0.45 * dayness), Math.sin(th) * G * 0.4);
+    sun.intensity = 1.1 + 1.7 * dayness;
+    scene.background.setHSL(0.09, 0.16, 0.045 + 0.035 * dayness);
+    scene.fog.color.copy(scene.background);
   }
   camStep(dt);
   updatePeople();

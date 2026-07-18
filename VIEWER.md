@@ -12,10 +12,12 @@ keep + regalia + processional axis at fusion), heraldic charge repulsion
 against territorial neighbours with fallen-crown scars at unfusion (§3.5),
 an LOD person band, spring-damper camera, a director that flies to arguments
 — deliberations verbatim, liberation notes, ratchet displacements, and the
-succession non-event — `dawn bundle` (§6.3), and `#t=N&play` deep links.
-Still to come: defection walks and feast-boundary shots, chronicle-attrition
-ambience, day/night polish, the full ANNALS shot grammar, drag-and-drop
-bundle loading.*
+succession non-event; encounters land on the frontier midpoint over a fire —
+defection walks and feast fires interpolated from the journal's flow records,
+chronicle attrition as margin ambience (doomed entries render crumbling),
+a day/night cycle, `dawn bundle` (§6.3), and `#t=N&play` deep links.
+Still to come: the full ANNALS shot grammar (cuts, shot variety, cooldown
+tuning), heraldic regalia unlock animation, drag-and-drop bundle loading.*
 
 ## 0. The architecture in one sentence
 
