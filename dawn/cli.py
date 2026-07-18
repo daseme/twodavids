@@ -71,16 +71,31 @@ def cmd_almanac(args: argparse.Namespace) -> None:
     print(text)
 
 
-def _accept_one(job: tuple[int, int]) -> tuple[int, dict]:
-    seed, ticks = job
-    eng = Engine(seed, Params())
+def _parse_overrides(pairs: list[str]) -> dict:
+    """--set beta_ideology=0.6 → {"beta_ideology": 0.6}, typed from the default."""
+    defaults = Params()
+    out = {}
+    for pair in pairs or []:
+        k, _, v = pair.partition("=")
+        if not hasattr(defaults, k):
+            raise SystemExit(f"unknown parameter: {k}")
+        out[k] = type(getattr(defaults, k))(v)
+    return out
+
+
+def _accept_one(job: tuple[int, int, dict]) -> tuple[int, dict]:
+    seed, ticks, overrides = job
+    eng = Engine(seed, Params(**overrides))
     eng.run(ticks)
     return seed, evaluate(eng)
 
 
 def cmd_accept(args: argparse.Namespace) -> None:
     """Run the §5 acceptance suite across seeds; aggregate honestly."""
-    jobs = [(seed, args.ticks)
+    overrides = _parse_overrides(args.set)
+    if overrides:
+        print(f"parameter overrides: {overrides}")
+    jobs = [(seed, args.ticks, overrides)
             for seed in range(args.start_seed, args.start_seed + args.seeds)]
     if args.jobs > 1:
         import multiprocessing as mp
@@ -115,7 +130,8 @@ def cmd_accept(args: argparse.Namespace) -> None:
     if args.json:
         Path(args.json).parent.mkdir(parents=True, exist_ok=True)
         Path(args.json).write_text(json.dumps(
-            {"ticks": args.ticks, "results": {s: r for s, r in results}}, indent=2))
+            {"ticks": args.ticks, "overrides": overrides,
+             "results": {s: r for s, r in results}}, indent=2))
         print(f"results written to {args.json}")
 
 
@@ -192,6 +208,8 @@ def main() -> None:
     c.add_argument("--ticks", type=int, default=4000)
     c.add_argument("--jobs", type=int, default=1, help="parallel workers")
     c.add_argument("--json", type=str, default=None, help="write results to this path")
+    c.add_argument("--set", action="append", metavar="KEY=VALUE",
+                   help="override a Params field, e.g. --set beta_ideology=0.6")
     c.set_defaults(fn=cmd_accept)
 
     p = sub.add_parser("replay", help="verify seed + journal reproduces the world")
