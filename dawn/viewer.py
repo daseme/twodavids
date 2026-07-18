@@ -90,13 +90,69 @@ def write_bundle(run_dir: Path) -> Path:
     return out
 
 
+def _inline_three(core: str, module: str) -> tuple[str, str]:
+    """Rewrite the split three.js build into two self-contained module scripts.
+
+    The obvious packaging — import the vendored source from a blob: URL — is
+    dead on arrival under a strict Content-Security-Policy, which refuses to
+    load blob: as script and leaves a blank page. So the ES module wiring is
+    resolved here at build time instead: core publishes its exports on a
+    global, and the main build reads them back. Two <script type="module">
+    blocks keep the two minified scopes apart, which matters because both
+    builds minify their internals to the same short names.
+    """
+    import re
+
+    def pairs(body: str, sep: str) -> list[tuple[str, str]]:
+        out = []
+        for item in body.split(","):
+            item = item.strip()
+            if not item:
+                continue
+            if " as " in item:
+                a, b = item.split(" as ")
+                out.append((a.strip(), b.strip()))
+            else:
+                out.append((item, item))
+        return out
+
+    ce = re.search(r"export\{([^}]*)\}\s*;?\s*$", core.strip())
+    mi = re.search(r'import\{([^}]*)\}from"\./three\.core\.min\.js";', module)
+    if not (ce and mi):
+        raise RuntimeError("vendored three.js layout changed; rewrite _inline_three")
+    # core: `local as Exported` -> {Exported: local}
+    core_map = ", ".join(f"{ex}:{loc}" for loc, ex in pairs(ce.group(1), " as "))
+    core_js = core[:core.rstrip().rfind("export{")] + \
+        f"window.__THREE_CORE={{{core_map}}};"
+
+    # module: `Exported as local` -> const {Exported: local} = core
+    imp = ", ".join(f"{ex}:{loc}" for ex, loc in pairs(mi.group(1), " as "))
+    module_js = module.replace(mi.group(0), f"const {{{imp}}}=window.__THREE_CORE;", 1)
+
+    # The build re-exports a slice of core verbatim — `export{...}from
+    # "./three.core.min.js"` — before exporting its own names. Those
+    # re-exported names live in core's scope, not this one, so the statement
+    # is dropped whole (its `from` clause included, or a dangling clause is
+    # left behind) and the names arrive instead by spreading core below.
+    module_js = re.sub(r'export\{[^}]*\}from"\./three\.core\.min\.js";',
+                       "", module_js)
+    local = re.search(r"export\{([^}]*)\};?\s*$", module_js.strip())
+    if not local:
+        raise RuntimeError("vendored three.js layout changed; rewrite _inline_three")
+    module_js = module_js[:module_js.rstrip().rfind("export{")]
+    names = ",".join(f"{ex}:{loc}" for loc, ex in pairs(local.group(1), " as "))
+    module_js += f"window.THREE={{...window.__THREE_CORE,{names}}};"
+    return core_js, module_js
+
+
 def write_viewer(run_dir: Path) -> Path:
     template = resources.files("dawn").joinpath("viewer_template.html").read_text()
     vendor = resources.files("dawn").joinpath("vendor")
     # The r178 build is split: three.module.min.js imports ./three.core.min.js.
     # Both are embedded; the template stitches them with blob URLs at load.
-    three = vendor.joinpath("three.module.min.js").read_text()
-    core = vendor.joinpath("three.core.min.js").read_text()
+    core, three = _inline_three(
+        vendor.joinpath("three.core.min.js").read_text(),
+        vendor.joinpath("three.module.min.js").read_text())
     # "</" never survives into an inline script: valid JSON either way, and the
     # deliberation texts are model-written free prose.
     payload = json.dumps(build_viewer_data(run_dir)).replace("</", "<\\/")

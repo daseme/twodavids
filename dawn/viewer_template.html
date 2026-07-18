@@ -138,18 +138,15 @@ where the full treatment in VIEWER.md §§2–4 is still to come. -->
 <div id="help">drag orbit · wheel zoom · click a name to visit · space
   play/pause · a dig mode · click a people for its dossier — the viewer watches; the only causal verb is argue</div>
 
-<script id="three-core-src" type="text/plain">__THREE_CORE_JS__</script>
-<script id="three-src" type="text/plain">__THREE_MODULE_JS__</script>
 <script id="bundle" type="application/json">__DATA__</script>
+<!-- Three.js r178, vendored and inlined. Its ES module wiring is resolved at
+     build time (dawn/viewer.py:_inline_three) rather than at load: a blob:
+     import is refused under a strict Content-Security-Policy and leaves the
+     page blank. Separate module scripts keep the two minified scopes apart. -->
+<script type="module">__THREE_CORE_JS__</script>
+<script type="module">__THREE_MODULE_JS__</script>
 <script type="module">
-// Vendored modules, imported via blob so this file stays single and offline.
-// The split r178 build's relative import is rewired to the core blob's URL.
-const blobURL = (src) =>
-  URL.createObjectURL(new Blob([src], {type: "text/javascript"}));
-const coreURL = blobURL(document.getElementById("three-core-src").textContent);
-const THREE = await import(blobURL(
-  document.getElementById("three-src").textContent
-    .replaceAll("./three.core.min.js", coreURL)));
+const THREE = window.THREE;
 
 // The whole app lives in boot(DATA) so a dropped bundle can replace the
 // world: abort the old session's listeners and render loop, start anew.
