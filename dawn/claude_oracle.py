@@ -45,6 +45,16 @@ class PromotionUnavailable(RuntimeError):
     """The model can no longer decide; the run stops instead of degrading."""
 
 
+class BudgetExhausted(PromotionUnavailable):
+    """The run hit its own call ceiling and stopped itself.
+
+    A promoted run's cost is not knowable up front: the model's choices
+    change how many deliberations the world raises, and a feedback loop
+    (see studies/promotion-interim.md) can inflate that several-fold
+    mid-run. So the ceiling is declared, not discovered from a bill.
+    """
+
+
 def _is_terminal(exc: Exception) -> bool:
     import anthropic
     if isinstance(exc, (anthropic.AuthenticationError,
@@ -148,7 +158,8 @@ class ClaudeOracle:
 
     def __init__(self, seed: int, model: str = "claude-sonnet-5",
                  promoted: frozenset[str] = DEFAULT_PROMOTED,
-                 variant: str = "original") -> None:
+                 variant: str = "original", max_calls: int | None = None) -> None:
+        self.max_calls = max_calls
         self.model = model
         self.variant = variant
         # The variant rides in the model tag, so a journal says which prompt
@@ -198,6 +209,11 @@ class ClaudeOracle:
             int.from_bytes(hashlib.sha256(key.encode()).digest()[:8], "big"))
         local_stub = StubOracle(r)
         speaker = names.person(r, situation.culture_name)
+        if self.max_calls is not None and self.calls >= self.max_calls:
+            raise BudgetExhausted(
+                f"call ceiling reached: {self.calls} live deliberations at "
+                f"tick {situation.tick}. Nothing is lost — resume with "
+                f"dawn run --resume (raise or drop --max-calls to continue)")
         menu_ids = {s.eid for s in situation.menu}
         try:
             stance_id, argument = self._call(sketch, situation)

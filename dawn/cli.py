@@ -23,9 +23,15 @@ def cmd_run(args: argparse.Namespace) -> None:
         promoted = frozenset(args.promote.split(",")) if args.promote else None
         oracle = ClaudeOracle(args.seed, model=args.oracle_model,
                               variant=args.prompt_variant,
+                              max_calls=args.max_calls,
                               **({"promoted": promoted} if promoted else {}))
         print(f"promotion live: {oracle.tag} decides "
               f"{', '.join(sorted(oracle.promoted))}; stub keeps the rest")
+        if args.max_calls:
+            print(f"call ceiling: {args.max_calls} live deliberations, "
+                  f"then the run stops (resumable)")
+        else:
+            print("no call ceiling set (--max-calls N caps the spend)")
     if args.resume:
         # Read and back up the prefix BEFORE Engine truncates the journal.
         jp = out / "journal.jsonl"
@@ -252,6 +258,10 @@ def main() -> None:
     r.add_argument("--promote", type=str, default=None,
                    help="comma-separated deliberation kinds the model decides "
                         "(default: contradiction,encounter,ratchet_crisis,recovery)")
+    r.add_argument("--max-calls", type=int, default=None,
+                   help="stop after N live model deliberations. A promoted "
+                        "run's cost is not knowable up front; this makes it "
+                        "declarable. The stop is clean and resumable.")
     r.add_argument("--prompt-variant", choices=["original", "neutral"],
                    default="original",
                    help="neutral: the ablation prompt — unstaged situation "

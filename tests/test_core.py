@@ -175,6 +175,31 @@ def test_promotion_stops_rather_than_degrading():
     assert o.calls == 8 and o.fallbacks == 52
 
 
+def test_max_calls_caps_the_spend():
+    """A promoted run's cost is not knowable up front, so the ceiling must be
+    declarable — and the stop must be clean, not a silent degradation."""
+    from dawn.claude_oracle import BudgetExhausted, ClaudeOracle
+    from dawn.oracle import Situation
+    from dawn.repertoire import primordial_stances
+
+    sit = Situation(kind="encounter", culture=0, culture_name="Aa",
+                    faction="0.0", faction_name="Bb", tick=7, detail={},
+                    menu=primordial_stances(), faction_values=np.zeros(8))
+
+    o = ClaudeOracle(1, max_calls=5)
+    o._call = lambda *a, **k: ("affirm", "we hold to our ways")
+    with pytest.raises(BudgetExhausted):
+        for _ in range(50):
+            o.deliberate("s", sit)
+    assert o.calls == 5, "must stop at the ceiling, not past it"
+
+    o = ClaudeOracle(1)                      # uncapped stays uncapped
+    o._call = lambda *a, **k: ("affirm", "x")
+    for _ in range(30):
+        o.deliberate("s", sit)
+    assert o.calls == 30
+
+
 def test_neutral_prompt_variant_changes_only_what_the_model_sees():
     """The ablation prompt must move the model's view and nothing else: the
     sim's glosses feed prompt_hash, so touching them would break the replay
