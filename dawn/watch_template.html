@@ -88,6 +88,8 @@
   .d-head .vs { color: var(--ink-3); font-size: 12px; }
   .d-head button { border: none; background: none; color: var(--ink-3); font-size: 18px;
                    cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+  .d-head select { font-size: 11px; padding: 3px 4px; max-width: 118px; }
+  #space { width: 100%; height: auto; display: block; cursor: crosshair; }
   .d-status { color: var(--ink-2); font-size: 12.5px; margin: 6px 0 0; }
   .d-status .badge { display: inline-block; border: 1px solid var(--line); border-radius: 99px;
                      padding: 0 8px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
@@ -173,11 +175,22 @@
         </div>
         <div class="d-status" id="d-status"></div>
         <p class="d-sketch" id="d-sketch"></p>
-        <div class="d-label">The eight axes of value</div>
+        <div class="d-label">The eight axes of value · <span style="color:var(--accent)">▲ contested ground</span></div>
         <canvas id="d-values" width="340" height="236"></canvas>
         <div class="d-label">The three domination tracks</div>
         <canvas id="d-dom" width="340" height="86"></canvas>
         <div class="d-compare" id="d-compare" hidden></div>
+      </div>
+      <div class="dossier" id="space-card">
+        <div class="d-head">
+          <h3 style="font-size:16px">Value space</h3>
+          <select id="ax-x" aria-label="Horizontal axis"></select>
+          <span class="vs">×</span>
+          <select id="ax-y" aria-label="Vertical axis"></select>
+        </div>
+        <canvas id="space" width="340" height="300" aria-label="Cultures as points in value space"></canvas>
+        <div class="d-status">Every people is a point; trails are the last fifty years.
+          Schismogenesis is points repelling. Click a point to select.</div>
       </div>
       <div class="ticker" id="ticker" aria-live="polite">
         <h2>The record, as it is made — click an entry to revisit it</h2>
@@ -233,11 +246,12 @@ function ownerAt(tick) {
 
 // ---- summaries -------------------------------------------------------------------
 const sums = DATA.summaries;
-function summaryAt(tick) {
+function summaryIdx(tick) {
   let lo = 0, hi = sums.length - 1;
   while (lo < hi) { const m = (lo + hi + 1) >> 1; if (sums[m].tick <= tick) lo = m; else hi = m - 1; }
-  return sums[lo];
+  return lo;
 }
+function summaryAt(tick) { return sums[summaryIdx(tick)]; }
 function centroids(ow) {
   const acc = {};
   for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
@@ -438,6 +452,8 @@ function draw() {
     ctx.globalAlpha = 1;
   }
 
+  drawSpace(sum, summaryIdx(t));
+
   const yr = Math.floor(t / 4);
   document.getElementById("year").textContent = `Year ${yr}`;
   document.getElementById("season").textContent = SEASONS[Math.floor(t) % 4];
@@ -524,6 +540,12 @@ function drawValueBars(sum) {
       const w = mA[k] * half;
       g.beginPath(); g.roundRect(Math.min(cx, cx + w), y - 5, Math.abs(w), 10, 3); g.fill();
     }
+    const sal = (sum.c[selA] || {}).sal;
+    if (sal && sal[k] > 0.4) {  // contact history has made this axis contested ground
+      g.fillStyle = css("--accent");
+      g.beginPath(); g.moveTo(cx, y - 13); g.lineTo(cx - 4, y - 7); g.lineTo(cx + 4, y - 7);
+      g.closePath(); g.fill();
+    }
     if (mB) {
       g.strokeStyle = cultureColor(selB, 1, 38); g.lineWidth = 1.8;
       const w = mB[k] * half;
@@ -554,6 +576,84 @@ function drawDomBars(a) {
     g.fillText(v.toFixed(2), left + span + 6, y + 3);
   }
 }
+
+// ---- value space: schismogenesis made watchable ------------------------------------------
+const axX = document.getElementById("ax-x"), axY = document.getElementById("ax-y");
+DATA.axes.forEach((a, i) => {
+  axX.add(new Option(`${a[1]} ↔ ${a[0]}`, i));
+  axY.add(new Option(`${a[1]} ↔ ${a[0]}`, i));
+});
+axX.value = 0; axY.value = 4;  // rank/equality × accumulation/distribution
+const spaceCv = document.getElementById("space");
+let spacePos = {};  // cid -> [x, y] of latest point, for click/hover
+
+function drawSpace(sum, idx) {
+  const g = spaceCv.getContext("2d"), W = spaceCv.width, H = spaceCv.height, pad = 30;
+  const kx = +axX.value, ky = +axY.value;
+  const XY = m => [pad + (m[kx] + 1) / 2 * (W - 2 * pad),
+                   H - pad - (m[ky] + 1) / 2 * (H - 2 * pad)];
+  g.clearRect(0, 0, W, H);
+  g.strokeStyle = css("--line"); g.lineWidth = 1;
+  g.beginPath(); g.moveTo(W / 2, pad - 6); g.lineTo(W / 2, H - pad + 6);
+  g.moveTo(pad - 6, H / 2); g.lineTo(W - pad + 6, H / 2); g.stroke();
+  g.fillStyle = css("--ink-3"); g.font = "9.5px system-ui";
+  const ax = DATA.axes[kx], ay = DATA.axes[ky];
+  g.textAlign = "left"; g.fillText(ax[1], 4, H / 2 - 6);
+  g.textAlign = "right"; g.fillText(ax[0], W - 4, H / 2 - 6);
+  g.textAlign = "center"; g.fillText(ay[0], W / 2, 10); g.fillText(ay[1], W / 2, H - 3);
+
+  spacePos = {};
+  for (const cid in sum.c) {
+    const trail = [];
+    for (let j = Math.max(0, idx - 12); j <= idx; j++) {
+      const c = sums[j].c[cid];
+      if (c && c.mean) trail.push(XY(c.mean));
+    }
+    if (!trail.length) continue;
+    const chosen = +cid === selA || +cid === selB;
+    const dim = selA !== null && !chosen;
+    g.strokeStyle = cultureColor(cid, dim ? 0.12 : 0.35); g.lineWidth = 1.5;
+    g.beginPath();
+    trail.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]));
+    g.stroke();
+    const [x, y] = trail[trail.length - 1];
+    spacePos[cid] = [x, y];
+    const r = Math.max(3, Math.min(7, 2 + Math.sqrt(sum.c[cid].pop) / 22));
+    g.fillStyle = cultureColor(cid, dim ? 0.3 : 0.95);
+    g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+    if (chosen) {
+      g.strokeStyle = cultureColor(cid, 1, 30); g.lineWidth = 2;
+      g.beginPath(); g.arc(x, y, r + 2.5, 0, 7); g.stroke();
+    }
+    if (sum.c[cid].fused) {
+      g.strokeStyle = "rgba(28,34,28,0.8)"; g.lineWidth = 1.3;
+      g.beginPath(); g.arc(x, y, r + 5, 0, 7); g.stroke();
+    }
+  }
+}
+
+function spaceHit(e) {
+  const rct = spaceCv.getBoundingClientRect();
+  const x = (e.clientX - rct.left) / rct.width * spaceCv.width;
+  const y = (e.clientY - rct.top) / rct.height * spaceCv.height;
+  let best = null, bd = 15 * 15;
+  for (const cid in spacePos) {
+    const d = (spacePos[cid][0] - x) ** 2 + (spacePos[cid][1] - y) ** 2;
+    if (d < bd) { bd = d; best = +cid; }
+  }
+  return best;
+}
+spaceCv.addEventListener("click", e => selectCulture(spaceHit(e) ?? -1));
+spaceCv.addEventListener("mousemove", e => {
+  const o = spaceHit(e);
+  if (o === null) { tip.style.opacity = 0; return; }
+  const sum = summaryAt(t);
+  tip.innerHTML = `<b>${nameOf(o)}</b>` + (sum.c[o] ? ` · ${fmt(sum.c[o].pop)} souls` : "");
+  tip.style.opacity = 1;
+  tip.style.left = Math.min(e.clientX + 14, innerWidth - 180) + "px";
+  tip.style.top = (e.clientY + 14) + "px";
+});
+spaceCv.addEventListener("mouseleave", () => tip.style.opacity = 0);
 
 // ---- density strip -----------------------------------------------------------------------
 const density = document.getElementById("density");
@@ -611,16 +711,17 @@ function cellAt(e) {
   if (x < 0 || y < 0 || x >= G || y >= G) return null;
   return [x, y];
 }
-canvas.addEventListener("click", e => {
-  const c = cellAt(e); if (!c) return;
-  const o = ownerAt(Math.floor(t))[c[0]][c[1]];
-  if (o < 0) { selA = selB = null; }
+function selectCulture(o) {
+  if (o === null || o < 0) { selA = selB = null; }
   else if (selA === null) selA = o;
   else if (o === selA) { selA = selB; selB = null; }
   else if (o === selB) selB = null;
-  else if (selB === null && o !== selA) selB = o;
   else selB = o;
   dossierKey = ""; ownVersion = "";
+}
+canvas.addEventListener("click", e => {
+  const c = cellAt(e); if (!c) return;
+  selectCulture(ownerAt(Math.floor(t))[c[0]][c[1]]);
 });
 document.getElementById("d-close").addEventListener("click", () => {
   selA = selB = null; dossierKey = ""; ownVersion = "";
