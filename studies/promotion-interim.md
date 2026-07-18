@@ -1,5 +1,12 @@
 # Promotion interim: the hospitality loop (2026-07-18, run in flight)
 
+> **Superseded in part by `promotion-seed3.md`.** Written at tick ~597 while
+> the run was still going. Its central observation (feast dominates the
+> answer to contradiction) held and strengthened. Its claim that liberations
+> are *starved* did not: at 2002 ticks the model produces more liberations
+> than the stub (48 vs 38), rerouted through recovery rather than
+> contradiction. Read the numbers below as an early sample, not a result.
+
 Written while the full seed-3 promoted run cooks (tick ~597 of 4000 at time
 of analysis). Two independent promoted samples exist over the same span —
 the live run and the interrupted first attempt

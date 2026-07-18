@@ -1,0 +1,131 @@
+{
+  "seed": 3,
+  "ticks": 2002,
+  "model": "claude-sonnet-5+stub",
+  "promoted_kinds": [
+    "contradiction",
+    "encounter",
+    "ratchet_crisis",
+    "recovery"
+  ],
+  "stance_distribution_on_promoted_kinds": {
+    "stub": {
+      "emulate": 511,
+      "refuse": 307,
+      "invert": 214,
+      "way_of_saurhu": 145,
+      "feast": 126,
+      "mock": 63,
+      "way_of_meimtsos": 53,
+      "leave": 46,
+      "propose": 41,
+      "way_of_lunkon": 32,
+      "affirm": 27,
+      "way_of_tsotsen": 23,
+      "way_of_nainshak": 19,
+      "way_of_tenlaim": 18,
+      "way_of_nekauk": 17,
+      "way_of_auswol": 17,
+      "way_of_kartha": 16,
+      "remember": 14,
+      "way_of_semein": 14,
+      "submit": 9,
+      "way_of_tokthen": 9,
+      "way_of_taillol": 9,
+      "way_of_heeir": 9,
+      "way_of_meistsen": 9,
+      "way_of_lontser": 8,
+      "way_of_kunthei": 7,
+      "way_of_rulri": 7,
+      "way_of_yunshu": 7,
+      "way_of_kweikhil": 6,
+      "way_of_teiwik": 5,
+      "way_of_kwinre": 5,
+      "way_of_loko": 5,
+      "way_of_shainmi": 5,
+      "way_of_tsiktes": 5,
+      "way_of_tarses": 4,
+      "way_of_leithi": 4,
+      "way_of_eisleil": 4,
+      "way_of_keimos": 4,
+      "way_of_seskas": 3,
+      "way_of_yunkin": 3,
+      "way_of_sekshul": 3,
+      "way_of_tsekmar": 3,
+      "way_of_orreil": 3,
+      "way_of_losthir": 2,
+      "way_of_haulnau": 2,
+      "way_of_rinrau": 2,
+      "way_of_names": 2,
+      "way_of_yauslaus": 2,
+      "way_of_naslau": 1,
+      "way_of_leissaun": 1,
+      "way_of_silru": 1,
+      "way_of_yeiswaur": 1,
+      "way_of_wuthai": 1,
+      "way_of_yikso": 1
+    },
+    "model": {
+      "feast": 4052,
+      "affirm": 219,
+      "remember": 30,
+      "mock": 5,
+      "refuse": 3,
+      "propose": 1
+    }
+  },
+  "liberations": {
+    "stub": {
+      "count": 38,
+      "mechanisms": {
+        "contradiction": 23,
+        "recovery": 8,
+        "encounter": 4,
+        "ratchet_break": 3
+      }
+    },
+    "model": {
+      "count": 48,
+      "mechanisms": {
+        "encounter": 1,
+        "contradiction": 10,
+        "recovery": 37
+      }
+    }
+  },
+  "counts": {
+    "ratchet": {
+      "stub": 4,
+      "model": 3
+    },
+    "hardening": {
+      "stub": 0,
+      "model": 0
+    },
+    "fusion": {
+      "stub": 0,
+      "model": 0
+    },
+    "unfusion": {
+      "stub": 0,
+      "model": 0
+    },
+    "schism": {
+      "stub": 0,
+      "model": 5
+    },
+    "extinction": {
+      "stub": 1,
+      "model": 2
+    }
+  },
+  "acceptance": {
+    "stub": true,
+    "model": true
+  },
+  "living_at_close": {
+    "stub": 11,
+    "model": 15
+  },
+  "first_divergence_tick": 2
+}
