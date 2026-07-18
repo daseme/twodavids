@@ -164,6 +164,42 @@ def test_narrate_with_mock_provider(tmp_path):
     assert "prompt_hash" in journal
 
 
+def test_promoted_oracle_mixed_journal_replays():
+    """Phase 3 plumbing: a mixed stub+model history is exactly replayable,
+    invalid model output falls back to the stub, and the journal records
+    which model decided each deliberation."""
+    from dawn.claude_oracle import ClaudeOracle
+
+    class FakeClaude(ClaudeOracle):
+        def _call(self, sketch, situation):
+            # deterministic fake "model": refuse if possible, else first move;
+            # every third call returns garbage to exercise the fallback path
+            self._n = getattr(self, "_n", 0) + 1
+            if self._n % 3 == 0:
+                return "not_a_stance", "gibberish"
+            ids = [s.eid for s in situation.menu]
+            return ("refuse" if "refuse" in ids else ids[0]), "We will not carry this."
+
+    a = Engine(11, Params(), oracle=FakeClaude(11, model="fake-model"))
+    a.run(300)
+    delibs = [r for r in a.journal.records if r["type"] == "deliberation"]
+    models = {d["model"] for d in delibs}
+    promoted = [d for d in delibs if d["kind"] != "baseline"]
+    assert promoted, "no promoted deliberations in 300 ticks"
+    assert "fake-model" in models, models
+    assert "stub-0" in models, models  # baseline chatter and fallbacks
+    # every deliberation's stance is in the menu it was offered
+    for d in delibs:
+        assert d["stance"] in d["menu"]
+    # replay: the mixed history reproduces bit-for-bit without any model
+    oracle = ReplayOracle(a.journal.records)
+    oracle.model_id = a.oracle.model_id if hasattr(a, "oracle") else "fake-model+stub"
+    oracle.model_id = "fake-model+stub"
+    b = Engine(11, Params(), oracle=oracle)
+    b.run(300)
+    assert a.journal.content_hash() == b.journal.content_hash()
+
+
 def test_nmi_bounds():
     e = Engine(1, Params())
     v = nmi_culture_terrain(e.world)

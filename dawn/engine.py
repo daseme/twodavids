@@ -127,7 +127,8 @@ class Engine:
             utt = self.oracle.deliberate(sketch, sit)
             self.journal.write({
                 "type": "deliberation", "tick": w.tick, "culture": sit.culture,
-                "faction": sit.faction, "kind": sit.kind, "model": self.oracle.model_id,
+                "faction": sit.faction, "kind": sit.kind,
+                "model": utt.model or self.oracle.model_id,
                 "prompt_hash": prompt_hash(sketch, sit), "sketch": sketch,
                 "menu": [s.eid for s in sit.menu], "stance": utt.stance_id,
                 "text": utt.text, "speaker": utt.speaker, "detail": sit.detail})
@@ -182,9 +183,9 @@ class Engine:
             # cultures remain free to pay for refusing the season.
             from .repertoire import STRUCTURES
             if STRUCTURES[cfg.seasons[3]].settlement == "aggregated":
-                s += 0.25
+                s += p.seasonal_fit_bonus
             if STRUCTURES[cfg.seasons[1]].settlement == "dispersed":
-                s += 0.25
+                s += p.seasonal_fit_bonus
             return s + 0.2 * cfg.weight
 
         best = max(configs, key=score)

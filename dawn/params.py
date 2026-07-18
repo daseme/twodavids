@@ -69,6 +69,7 @@ class Params:
     unfusion_threshold: float = 0.5
     ratchet_base: float = 0.002        # base chance a seasonal handoff fails
     ratchet_dom_pull: float = 0.03     # charisma+violence make the winter chief stay
+    seasonal_fit_bonus: float = 0.25   # the year arguing for dualism (per matching season)
     liberation_pop_cost: float = 0.97  # refusals are impressive because they cost
 
     # --- membership ------------------------------------------------------------

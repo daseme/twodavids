@@ -17,10 +17,21 @@ from .params import Params
 def cmd_run(args: argparse.Namespace) -> None:
     out = Path(args.out or f"runs/seed-{args.seed}")
     out.mkdir(parents=True, exist_ok=True)
-    eng = Engine(args.seed, Params(), out_dir=out)
+    oracle = None
+    if args.oracle == "claude":
+        from .claude_oracle import ClaudeOracle
+        promoted = frozenset(args.promote.split(",")) if args.promote else None
+        oracle = ClaudeOracle(args.seed, model=args.oracle_model,
+                              **({"promoted": promoted} if promoted else {}))
+        print(f"promotion live: {oracle.model} decides "
+              f"{', '.join(sorted(oracle.promoted))}; stub keeps the rest")
+    eng = Engine(args.seed, Params(), out_dir=out, oracle=oracle)
     print(f"world of seed {args.seed}: "
           + ", ".join(c.name for c in eng.world.living()))
     eng.run(args.ticks, progress=True)
+    if oracle is not None:
+        print(f"model deliberations: {oracle.calls} decided live, "
+              f"{oracle.fallbacks} fell back to the stub")
     (out / "ALMANAC.md").write_text(compile_almanac(out))
     print(f"done: {args.ticks} ticks, {len(eng.world.living())} living cultures, "
           f"{sum(1 for e in eng.chronicle.entries if e.surviving)} surviving chronicle entries")
@@ -181,6 +192,12 @@ def main() -> None:
     r.add_argument("--seed", type=int, default=1)
     r.add_argument("--ticks", type=int, default=4000, help="seasons (~50 generations)")
     r.add_argument("--out", type=str, default=None)
+    r.add_argument("--oracle", choices=["stub", "claude"], default="stub",
+                   help="claude = Phase 3 promotion: the model's stances go live")
+    r.add_argument("--oracle-model", type=str, default="claude-sonnet-5")
+    r.add_argument("--promote", type=str, default=None,
+                   help="comma-separated deliberation kinds the model decides "
+                        "(default: contradiction,encounter,ratchet_crisis,recovery)")
     r.set_defaults(fn=cmd_run)
 
     v = sub.add_parser("viz", help="build a self-contained HTML report from a run directory")

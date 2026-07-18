@@ -50,6 +50,7 @@ class Utterance:
     stance_id: str
     text: str
     speaker: dict
+    model: str | None = None   # which model actually decided (mixed oracles)
 
 
 class Oracle(Protocol):
@@ -107,7 +108,8 @@ class StubOracle:
         text = (f"{speaker['name']} of the {situation.faction_name}, "
                 f"{speaker['traits'][0]} and {speaker['traits'][1]}, stood and said: "
                 f"“{line}”")
-        return Utterance(stance_id=chosen.eid, text=text, speaker=speaker)
+        return Utterance(stance_id=chosen.eid, text=text, speaker=speaker,
+                         model=self.model_id)
 
 
 class ReplayOracle:
@@ -125,7 +127,7 @@ class ReplayOracle:
     def deliberate(self, sketch: str, situation: Situation) -> Utterance:
         rec = self.responses[(situation.tick, situation.culture, situation.faction)]
         return Utterance(stance_id=rec["stance"], text=rec["text"],
-                         speaker=rec["speaker"])
+                         speaker=rec["speaker"], model=rec.get("model"))
 
 
 def prompt_hash(sketch: str, situation: Situation) -> str:
