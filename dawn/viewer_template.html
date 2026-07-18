@@ -796,6 +796,13 @@ function directorStep(tick, now) {
     beatEl.classList.remove("on");
     beatFire = null;
   }
+  // Idle: with nothing to film for a while, pull back to the establishing
+  // wide and drift — the land itself is the between-beats shot.
+  if (playing && now - beatShownAt > 16000 && !dragging) {
+    cam.dTarget = Math.max(cam.dTarget, G * 0.85);
+    cam.pTarget = 0.95;
+    cam.yaw += 0.0006;
+  }
 }
 
 // ---- legend -----------------------------------------------------------------
