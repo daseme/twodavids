@@ -157,7 +157,14 @@ designer-review inbox).
 
 ## 5. Where the tuning ridge stands (open question 3 — status, honest)
 
-At defaults (β = 0.8), across seeds 1–6, 4000 ticks (~50 generations):
+**Update (see `studies/beta-sweep.md`):** a 4×40-world sweep found the ridge
+is a *plateau* in β ∈ [0.6, 0.9] — pass rates 30–32/40 everywhere, no cliff
+on either side. The ideology mechanism is robust, not fine-tuned; the
+seasonal-extinction tail (~5–17% of worlds) does not respond to β and is
+suspected to live in the ratchet/re-evaluation dynamics instead
+(`ratchet_dom_pull`, the hardcoded seasonal-fit coefficient, `ratchet_base`).
+
+Initial small-sample survey at defaults (β = 0.8), seeds 1–6, 4000 ticks:
 
 - **5/6 worlds pass all seven acceptance criteria.**
 - Terrain decorrelation: NMI 0.06–0.12 against a 0.30 threshold — culture is

@@ -1,0 +1,2970 @@
+{
+  "ticks": 4000,
+  "overrides": {
+    "beta_ideology": 0.9
+  },
+  "results": {
+    "1": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.077,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 13
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 2,
+        "ratchet_events": 6,
+        "ratcheted_now": 13
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 15,
+        "unfusions": 11,
+        "early_fusion": false,
+        "partial_among_holders": 0.71,
+        "fused_share": 0.2,
+        "held_counts": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          3,
+          0,
+          2,
+          3,
+          2,
+          2,
+          2,
+          2,
+          3,
+          2,
+          3,
+          2,
+          2,
+          2
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 142,
+        "rate_per_culture_gen": 0.1052,
+        "mechanisms": {
+          "contradiction": 12,
+          "encounter": 10,
+          "recovery": 118,
+          "ratchet_break": 2
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 1117,
+        "per_era": 55.85
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 20,
+        "total_pop": 32484
+      },
+      "all_pass": true
+    },
+    "2": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.15,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 10
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 18,
+        "ratchet_events": 7,
+        "ratcheted_now": 6
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 0,
+        "unfusions": 0,
+        "early_fusion": false,
+        "partial_among_holders": 1.0,
+        "fused_share": 0.0,
+        "held_counts": [
+          0,
+          1,
+          1,
+          0,
+          1,
+          1,
+          1,
+          1,
+          0,
+          2,
+          2,
+          2,
+          1,
+          0,
+          1,
+          2,
+          0,
+          1,
+          1,
+          0,
+          1,
+          2,
+          0,
+          1,
+          1,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          2,
+          0,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 128,
+        "rate_per_culture_gen": 0.0465,
+        "mechanisms": {
+          "recovery": 124,
+          "encounter": 3,
+          "ratchet_break": 1
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 1353,
+        "per_era": 67.65
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 40,
+        "total_pop": 84052
+      },
+      "all_pass": true
+    },
+    "3": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.089,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 6
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 2,
+        "ratchet_events": 2,
+        "ratcheted_now": 2
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 0,
+        "unfusions": 0,
+        "early_fusion": false,
+        "partial_among_holders": 1.0,
+        "fused_share": 0.0,
+        "held_counts": [
+          1,
+          0,
+          1,
+          1,
+          1,
+          0,
+          0,
+          1,
+          1,
+          1,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 113,
+        "rate_per_culture_gen": 0.1329,
+        "mechanisms": {
+          "encounter": 10,
+          "recovery": 89,
+          "contradiction": 14
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 759,
+        "per_era": 37.95
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 11,
+        "total_pop": 17122
+      },
+      "all_pass": true
+    },
+    "4": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.063,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 6
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": false,
+        "switching_now": 0,
+        "ratchet_events": 1,
+        "ratcheted_now": 2
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 18,
+        "unfusions": 16,
+        "early_fusion": false,
+        "partial_among_holders": 0.8,
+        "fused_share": 0.14,
+        "held_counts": [
+          3,
+          1,
+          0,
+          1,
+          2,
+          0,
+          1
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": false,
+        "events": 355,
+        "rate_per_culture_gen": 0.5917,
+        "mechanisms": {
+          "contradiction": 257,
+          "encounter": 6,
+          "recovery": 92
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 834,
+        "per_era": 41.7
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 7,
+        "total_pop": 51704
+      },
+      "all_pass": false
+    },
+    "5": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.134,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 9
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 10,
+        "ratchet_events": 6,
+        "ratcheted_now": 11
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 8,
+        "unfusions": 3,
+        "early_fusion": false,
+        "partial_among_holders": 0.62,
+        "fused_share": 0.13,
+        "held_counts": [
+          1,
+          0,
+          2,
+          0,
+          0,
+          2,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          3,
+          3,
+          3,
+          0,
+          3,
+          0,
+          3,
+          0,
+          0,
+          1,
+          2,
+          0,
+          0,
+          0,
+          0,
+          2,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 99,
+        "rate_per_culture_gen": 0.0336,
+        "mechanisms": {
+          "contradiction": 4,
+          "encounter": 1,
+          "recovery": 91,
+          "ratchet_break": 3
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 563,
+        "per_era": 28.15
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 39,
+        "total_pop": 57998
+      },
+      "all_pass": true
+    },
+    "6": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.159,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 10
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 1,
+        "ratchet_events": 3,
+        "ratcheted_now": 34
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 18,
+        "unfusions": 15,
+        "early_fusion": false,
+        "partial_among_holders": 0.9,
+        "fused_share": 0.07,
+        "held_counts": [
+          2,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          2,
+          0,
+          2,
+          2,
+          2,
+          2,
+          0,
+          2,
+          2,
+          2,
+          2,
+          3,
+          2,
+          2,
+          1,
+          2,
+          2,
+          2,
+          2,
+          3,
+          0,
+          2,
+          1,
+          3,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 151,
+        "rate_per_culture_gen": 0.0503,
+        "mechanisms": {
+          "contradiction": 15,
+          "ratchet_break": 1,
+          "recovery": 131,
+          "encounter": 4
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 1606,
+        "per_era": 80.3
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 45,
+        "total_pop": 33855
+      },
+      "all_pass": true
+    },
+    "7": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.102,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 9
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 2,
+        "ratchet_events": 1,
+        "ratcheted_now": 1
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 0,
+        "unfusions": 0,
+        "early_fusion": false,
+        "partial_among_holders": 1.0,
+        "fused_share": 0.0,
+        "held_counts": [
+          0,
+          0,
+          0,
+          0,
+          2,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 119,
+        "rate_per_culture_gen": 0.0793,
+        "mechanisms": {
+          "recovery": 98,
+          "contradiction": 17,
+          "encounter": 4
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 562,
+        "per_era": 28.1
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 23,
+        "total_pop": 47937
+      },
+      "all_pass": true
+    },
+    "8": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.122,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 13
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 8,
+        "ratchet_events": 2,
+        "ratcheted_now": 1
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 0,
+        "unfusions": 0,
+        "early_fusion": false,
+        "partial_among_holders": 1.0,
+        "fused_share": 0.0,
+        "held_counts": [
+          1,
+          0,
+          1,
+          0,
+          0,
+          2,
+          0,
+          0,
+          1,
+          0,
+          1,
+          1,
+          0,
+          1,
+          0,
+          1,
+          1,
+          1,
+          1,
+          1,
+          0,
+          1,
+          0,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 96,
+        "rate_per_culture_gen": 0.0436,
+        "mechanisms": {
+          "contradiction": 16,
+          "encounter": 15,
+          "recovery": 65
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 657,
+        "per_era": 32.85
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 31,
+        "total_pop": 28982
+      },
+      "all_pass": true
+    },
+    "9": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.045,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 6
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 2,
+        "ratchet_events": 3,
+        "ratcheted_now": 3
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 1,
+        "unfusions": 1,
+        "early_fusion": false,
+        "partial_among_holders": 1.0,
+        "fused_share": 0.0,
+        "held_counts": [
+          0,
+          2,
+          0,
+          0,
+          0,
+          1,
+          0,
+          2,
+          0,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 185,
+        "rate_per_culture_gen": 0.3083,
+        "mechanisms": {
+          "contradiction": 83,
+          "encounter": 8,
+          "recovery": 94
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 805,
+        "per_era": 40.25
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 10,
+        "total_pop": 32346
+      },
+      "all_pass": true
+    },
+    "10": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.089,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 5
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 2,
+        "ratchet_events": 2,
+        "ratcheted_now": 1
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 0,
+        "unfusions": 0,
+        "early_fusion": false,
+        "partial_among_holders": 1.0,
+        "fused_share": 0.0,
+        "held_counts": [
+          1,
+          0,
+          1,
+          0,
+          1,
+          0,
+          2,
+          1
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 112,
+        "rate_per_culture_gen": 0.1867,
+        "mechanisms": {
+          "contradiction": 20,
+          "recovery": 77,
+          "encounter": 15
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 691,
+        "per_era": 34.55
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 8,
+        "total_pop": 19827
+      },
+      "all_pass": true
+    },
+    "11": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.093,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 12
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 5,
+        "ratchet_events": 3,
+        "ratcheted_now": 19
+      },
+      "fusion_contingent": {
+        "pass": false,
+        "fusions": 70,
+        "unfusions": 59,
+        "early_fusion": true,
+        "partial_among_holders": 0.55,
+        "fused_share": 0.3,
+        "held_counts": [
+          0,
+          0,
+          0,
+          3,
+          0,
+          1,
+          0,
+          0,
+          0,
+          2,
+          3,
+          0,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          2,
+          3,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          0,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 172,
+        "rate_per_culture_gen": 0.086,
+        "mechanisms": {
+          "recovery": 165,
+          "encounter": 4,
+          "contradiction": 3
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 2204,
+        "per_era": 110.2
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 30,
+        "total_pop": 55010
+      },
+      "all_pass": false
+    },
+    "12": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.121,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 4
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 4,
+        "ratchet_events": 13,
+        "ratcheted_now": 8
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 0,
+        "unfusions": 0,
+        "early_fusion": false,
+        "partial_among_holders": 1.0,
+        "fused_share": 0.0,
+        "held_counts": [
+          1,
+          2,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          1,
+          0,
+          2,
+          2,
+          0,
+          0,
+          1,
+          1,
+          2,
+          0,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 66,
+        "rate_per_culture_gen": 0.0508,
+        "mechanisms": {
+          "recovery": 50,
+          "encounter": 7,
+          "contradiction": 3,
+          "ratchet_break": 6
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 509,
+        "per_era": 25.45
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 19,
+        "total_pop": 54179
+      },
+      "all_pass": true
+    },
+    "13": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.166,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 13
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 17,
+        "ratchet_events": 6,
+        "ratcheted_now": 5
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 2,
+        "unfusions": 2,
+        "early_fusion": false,
+        "partial_among_holders": 1.0,
+        "fused_share": 0.0,
+        "held_counts": [
+          1,
+          2,
+          1,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          0,
+          1,
+          1,
+          0,
+          2,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          2,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 304,
+        "rate_per_culture_gen": 0.077,
+        "mechanisms": {
+          "recovery": 164,
+          "contradiction": 128,
+          "encounter": 10,
+          "ratchet_break": 2
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 600,
+        "per_era": 30.0
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 55,
+        "total_pop": 50289
+      },
+      "all_pass": true
+    },
+    "14": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.108,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 10
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 3,
+        "ratchet_events": 4,
+        "ratcheted_now": 10
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 0,
+        "unfusions": 0,
+        "early_fusion": false,
+        "partial_among_holders": 1.0,
+        "fused_share": 0.0,
+        "held_counts": [
+          2,
+          0,
+          0,
+          1,
+          1,
+          2,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          0,
+          0,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 193,
+        "rate_per_culture_gen": 0.1245,
+        "mechanisms": {
+          "recovery": 119,
+          "encounter": 10,
+          "contradiction": 63,
+          "ratchet_break": 1
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 731,
+        "per_era": 36.55
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 24,
+        "total_pop": 76952
+      },
+      "all_pass": true
+    },
+    "15": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.119,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 15
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": false,
+        "switching_now": 0,
+        "ratchet_events": 3,
+        "ratcheted_now": 36
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 4,
+        "unfusions": 4,
+        "early_fusion": false,
+        "partial_among_holders": 1.0,
+        "fused_share": 0.0,
+        "held_counts": [
+          1,
+          2,
+          0,
+          2,
+          0,
+          0,
+          1,
+          0,
+          1,
+          0,
+          1,
+          0,
+          1,
+          0,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          1,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          1,
+          0,
+          0,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 188,
+        "rate_per_culture_gen": 0.0501,
+        "mechanisms": {
+          "recovery": 126,
+          "contradiction": 59,
+          "encounter": 3
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 1085,
+        "per_era": 54.25
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 50,
+        "total_pop": 70890
+      },
+      "all_pass": false
+    },
+    "16": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.154,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 11
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": false,
+        "switching_now": 0,
+        "ratchet_events": 3,
+        "ratcheted_now": 31
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 34,
+        "unfusions": 29,
+        "early_fusion": false,
+        "partial_among_holders": 0.86,
+        "fused_share": 0.14,
+        "held_counts": [
+          1,
+          1,
+          1,
+          1,
+          3,
+          3,
+          1,
+          3,
+          1,
+          2,
+          2,
+          2,
+          2,
+          2,
+          1,
+          2,
+          1,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          3,
+          2,
+          3,
+          1,
+          2,
+          2,
+          2,
+          2,
+          2,
+          1,
+          2,
+          2,
+          2,
+          2
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 181,
+        "rate_per_culture_gen": 0.0683,
+        "mechanisms": {
+          "recovery": 119,
+          "encounter": 14,
+          "contradiction": 48
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 1320,
+        "per_era": 66.0
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 37,
+        "total_pop": 51621
+      },
+      "all_pass": false
+    },
+    "17": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.079,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 8
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 15,
+        "ratchet_events": 1,
+        "ratcheted_now": 1
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 0,
+        "unfusions": 0,
+        "early_fusion": false,
+        "partial_among_holders": 1.0,
+        "fused_share": 0.0,
+        "held_counts": [
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          2,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 109,
+        "rate_per_culture_gen": 0.0752,
+        "mechanisms": {
+          "contradiction": 3,
+          "recovery": 102,
+          "encounter": 4
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 663,
+        "per_era": 33.15
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 22,
+        "total_pop": 18981
+      },
+      "all_pass": true
+    },
+    "18": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.114,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 13
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 8,
+        "ratchet_events": 7,
+        "ratcheted_now": 11
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 8,
+        "unfusions": 7,
+        "early_fusion": false,
+        "partial_among_holders": 0.91,
+        "fused_share": 0.03,
+        "held_counts": [
+          1,
+          3,
+          2,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          2,
+          2,
+          0,
+          0,
+          0,
+          2,
+          0,
+          2,
+          2,
+          0,
+          0,
+          0,
+          2,
+          0,
+          0,
+          1,
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 129,
+        "rate_per_culture_gen": 0.0629,
+        "mechanisms": {
+          "recovery": 121,
+          "encounter": 5,
+          "ratchet_break": 1,
+          "contradiction": 2
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 1854,
+        "per_era": 92.7
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 32,
+        "total_pop": 75736
+      },
+      "all_pass": true
+    },
+    "19": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.092,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 16
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 4,
+        "ratchet_events": 3,
+        "ratcheted_now": 3
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 6,
+        "unfusions": 6,
+        "early_fusion": false,
+        "partial_among_holders": 1.0,
+        "fused_share": 0.0,
+        "held_counts": [
+          0,
+          0,
+          1,
+          0,
+          1,
+          1,
+          2,
+          0,
+          1,
+          2,
+          2,
+          1,
+          0,
+          1,
+          1,
+          0,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 129,
+        "rate_per_culture_gen": 0.0549,
+        "mechanisms": {
+          "recovery": 107,
+          "contradiction": 10,
+          "encounter": 12
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 1101,
+        "per_era": 55.05
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 35,
+        "total_pop": 43081
+      },
+      "all_pass": true
+    },
+    "20": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.073,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 12
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 1,
+        "ratchet_events": 3,
+        "ratcheted_now": 3
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 1,
+        "unfusions": 0,
+        "early_fusion": false,
+        "partial_among_holders": 0.83,
+        "fused_share": 0.09,
+        "held_counts": [
+          1,
+          0,
+          0,
+          2,
+          0,
+          0,
+          2,
+          2,
+          1,
+          0,
+          3
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 114,
+        "rate_per_culture_gen": 0.1754,
+        "mechanisms": {
+          "recovery": 88,
+          "contradiction": 19,
+          "encounter": 7
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 441,
+        "per_era": 22.05
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 11,
+        "total_pop": 51971
+      },
+      "all_pass": true
+    },
+    "21": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.1,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 8
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 7,
+        "ratchet_events": 55,
+        "ratcheted_now": 4
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 9,
+        "unfusions": 8,
+        "early_fusion": false,
+        "partial_among_holders": 0.93,
+        "fused_share": 0.05,
+        "held_counts": [
+          0,
+          1,
+          0,
+          1,
+          0,
+          1,
+          0,
+          0,
+          3,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          2,
+          1,
+          1
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 214,
+        "rate_per_culture_gen": 0.1427,
+        "mechanisms": {
+          "recovery": 123,
+          "encounter": 14,
+          "contradiction": 26,
+          "ratchet_break": 51
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 1076,
+        "per_era": 53.8
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 20,
+        "total_pop": 27007
+      },
+      "all_pass": true
+    },
+    "22": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.129,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 21
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 1,
+        "ratchet_events": 6,
+        "ratcheted_now": 16
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 43,
+        "unfusions": 38,
+        "early_fusion": false,
+        "partial_among_holders": 0.75,
+        "fused_share": 0.16,
+        "held_counts": [
+          0,
+          0,
+          1,
+          1,
+          2,
+          2,
+          0,
+          3,
+          3,
+          0,
+          0,
+          1,
+          3,
+          0,
+          3,
+          1,
+          0,
+          0,
+          2,
+          0,
+          3,
+          2,
+          2,
+          1,
+          2,
+          2,
+          1,
+          1,
+          1,
+          0,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 161,
+        "rate_per_culture_gen": 0.087,
+        "mechanisms": {
+          "encounter": 7,
+          "recovery": 137,
+          "contradiction": 13,
+          "ratchet_break": 4
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 1486,
+        "per_era": 74.3
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 31,
+        "total_pop": 65669
+      },
+      "all_pass": true
+    },
+    "23": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.073,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 10
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 15,
+        "ratchet_events": 14,
+        "ratcheted_now": 5
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 2,
+        "unfusions": 0,
+        "early_fusion": false,
+        "partial_among_holders": 0.82,
+        "fused_share": 0.08,
+        "held_counts": [
+          1,
+          3,
+          0,
+          1,
+          2,
+          0,
+          0,
+          1,
+          0,
+          1,
+          0,
+          1,
+          1,
+          0,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          3,
+          0,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 145,
+        "rate_per_culture_gen": 0.0763,
+        "mechanisms": {
+          "contradiction": 22,
+          "encounter": 5,
+          "recovery": 108,
+          "ratchet_break": 10
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 1231,
+        "per_era": 61.55
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 26,
+        "total_pop": 41376
+      },
+      "all_pass": true
+    },
+    "24": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.082,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 4
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": false,
+        "switching_now": 0,
+        "ratchet_events": 7,
+        "ratcheted_now": 2
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 0,
+        "unfusions": 0,
+        "early_fusion": false,
+        "partial_among_holders": 1.0,
+        "fused_share": 0.0,
+        "held_counts": [
+          1,
+          0,
+          0,
+          2,
+          2,
+          0,
+          1,
+          0,
+          1,
+          1,
+          1,
+          1,
+          1,
+          2,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 88,
+        "rate_per_culture_gen": 0.0733,
+        "mechanisms": {
+          "contradiction": 20,
+          "recovery": 63,
+          "ratchet_break": 4,
+          "encounter": 1
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 236,
+        "per_era": 11.8
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 15,
+        "total_pop": 36556
+      },
+      "all_pass": false
+    },
+    "25": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.133,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 15
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 7,
+        "ratchet_events": 11,
+        "ratcheted_now": 10
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 3,
+        "unfusions": 3,
+        "early_fusion": false,
+        "partial_among_holders": 1.0,
+        "fused_share": 0.0,
+        "held_counts": [
+          2,
+          0,
+          0,
+          0,
+          1,
+          2,
+          0,
+          0,
+          2,
+          0,
+          1,
+          2,
+          0,
+          1,
+          2,
+          0,
+          2,
+          0,
+          2,
+          0,
+          2,
+          1,
+          2,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          1,
+          0,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 112,
+        "rate_per_culture_gen": 0.0533,
+        "mechanisms": {
+          "encounter": 3,
+          "recovery": 102,
+          "contradiction": 6,
+          "ratchet_break": 1
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 1429,
+        "per_era": 71.45
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 32,
+        "total_pop": 87216
+      },
+      "all_pass": true
+    },
+    "26": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.108,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 13
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": false,
+        "switching_now": 0,
+        "ratchet_events": 2,
+        "ratcheted_now": 13
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 0,
+        "unfusions": 0,
+        "early_fusion": false,
+        "partial_among_holders": 1.0,
+        "fused_share": 0.0,
+        "held_counts": [
+          0,
+          0,
+          1,
+          0,
+          1,
+          0,
+          0,
+          1,
+          0,
+          2,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          2,
+          0,
+          2,
+          2,
+          1,
+          2,
+          2,
+          0,
+          2,
+          2,
+          2,
+          2,
+          2,
+          1
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 272,
+        "rate_per_culture_gen": 0.1157,
+        "mechanisms": {
+          "contradiction": 136,
+          "encounter": 7,
+          "recovery": 129
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 680,
+        "per_era": 34.0
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 33,
+        "total_pop": 37315
+      },
+      "all_pass": false
+    },
+    "27": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.089,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 7
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 12,
+        "ratchet_events": 4,
+        "ratcheted_now": 4
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 2,
+        "unfusions": 1,
+        "early_fusion": false,
+        "partial_among_holders": 0.83,
+        "fused_share": 0.04,
+        "held_counts": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          2,
+          3,
+          0,
+          2,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 102,
+        "rate_per_culture_gen": 0.0583,
+        "mechanisms": {
+          "recovery": 87,
+          "encounter": 7,
+          "contradiction": 8
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 869,
+        "per_era": 43.45
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 26,
+        "total_pop": 55297
+      },
+      "all_pass": true
+    },
+    "28": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.086,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 8
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 9,
+        "ratchet_events": 1,
+        "ratcheted_now": 1
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 9,
+        "unfusions": 8,
+        "early_fusion": false,
+        "partial_among_holders": 0.67,
+        "fused_share": 0.06,
+        "held_counts": [
+          0,
+          0,
+          0,
+          1,
+          1,
+          0,
+          3,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 78,
+        "rate_per_culture_gen": 0.065,
+        "mechanisms": {
+          "encounter": 14,
+          "recovery": 63,
+          "contradiction": 1
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 1397,
+        "per_era": 69.85
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 18,
+        "total_pop": 38617
+      },
+      "all_pass": true
+    },
+    "29": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.097,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 17
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 5,
+        "ratchet_events": 25,
+        "ratcheted_now": 8
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 32,
+        "unfusions": 27,
+        "early_fusion": false,
+        "partial_among_holders": 0.64,
+        "fused_share": 0.2,
+        "held_counts": [
+          0,
+          0,
+          0,
+          1,
+          0,
+          1,
+          3,
+          3,
+          3,
+          3,
+          0,
+          2,
+          3,
+          2,
+          2,
+          0,
+          1,
+          2,
+          1,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 199,
+        "rate_per_culture_gen": 0.1244,
+        "mechanisms": {
+          "encounter": 7,
+          "contradiction": 65,
+          "recovery": 103,
+          "ratchet_break": 24
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 1951,
+        "per_era": 97.55
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 25,
+        "total_pop": 83412
+      },
+      "all_pass": true
+    },
+    "30": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.124,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 6
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 1,
+        "ratchet_events": 1,
+        "ratcheted_now": 17
+      },
+      "fusion_contingent": {
+        "pass": false,
+        "fusions": 67,
+        "unfusions": 57,
+        "early_fusion": false,
+        "partial_among_holders": 0.5,
+        "fused_share": 0.38,
+        "held_counts": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          3,
+          0,
+          3,
+          3,
+          2,
+          2,
+          2,
+          3,
+          3,
+          2,
+          3,
+          2,
+          3,
+          2,
+          3,
+          3,
+          2,
+          2
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 89,
+        "rate_per_culture_gen": 0.0468,
+        "mechanisms": {
+          "encounter": 7,
+          "recovery": 65,
+          "contradiction": 17
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 2114,
+        "per_era": 105.7
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 24,
+        "total_pop": 39725
+      },
+      "all_pass": false
+    },
+    "31": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.074,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 20
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 4,
+        "ratchet_events": 3,
+        "ratcheted_now": 10
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 4,
+        "unfusions": 2,
+        "early_fusion": false,
+        "partial_among_holders": 0.92,
+        "fused_share": 0.05,
+        "held_counts": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          2,
+          2,
+          1,
+          2,
+          2,
+          3,
+          2,
+          2,
+          2,
+          2,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 114,
+        "rate_per_culture_gen": 0.0814,
+        "mechanisms": {
+          "recovery": 91,
+          "contradiction": 19,
+          "encounter": 2,
+          "ratchet_break": 2
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 1034,
+        "per_era": 51.7
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 22,
+        "total_pop": 53835
+      },
+      "all_pass": true
+    },
+    "32": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.098,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 5
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 12,
+        "ratchet_events": 4,
+        "ratcheted_now": 6
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 0,
+        "unfusions": 0,
+        "early_fusion": false,
+        "partial_among_holders": 1.0,
+        "fused_share": 0.0,
+        "held_counts": [
+          0,
+          2,
+          1,
+          1,
+          0,
+          1,
+          2,
+          2,
+          0,
+          0,
+          2,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 157,
+        "rate_per_culture_gen": 0.0897,
+        "mechanisms": {
+          "contradiction": 15,
+          "recovery": 135,
+          "encounter": 7
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 570,
+        "per_era": 28.5
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 22,
+        "total_pop": 32887
+      },
+      "all_pass": true
+    },
+    "33": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.043,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 8
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 2,
+        "ratchet_events": 2,
+        "ratcheted_now": 0
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 0,
+        "unfusions": 0,
+        "early_fusion": false,
+        "partial_among_holders": 1.0,
+        "fused_share": 0.0,
+        "held_counts": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 96,
+        "rate_per_culture_gen": 0.16,
+        "mechanisms": {
+          "encounter": 21,
+          "recovery": 63,
+          "contradiction": 12
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 290,
+        "per_era": 14.5
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 9,
+        "total_pop": 31685
+      },
+      "all_pass": true
+    },
+    "34": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.117,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 7
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 4,
+        "ratchet_events": 3,
+        "ratcheted_now": 14
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 3,
+        "unfusions": 2,
+        "early_fusion": false,
+        "partial_among_holders": 0.94,
+        "fused_share": 0.04,
+        "held_counts": [
+          1,
+          0,
+          0,
+          0,
+          3,
+          1,
+          1,
+          0,
+          1,
+          2,
+          2,
+          2,
+          2,
+          1,
+          2,
+          2,
+          2,
+          0,
+          0,
+          2,
+          0,
+          2,
+          0,
+          1,
+          1,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 121,
+        "rate_per_culture_gen": 0.0712,
+        "mechanisms": {
+          "recovery": 99,
+          "contradiction": 13,
+          "encounter": 9
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 1930,
+        "per_era": 96.5
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 26,
+        "total_pop": 31006
+      },
+      "all_pass": true
+    },
+    "35": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.111,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 10
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 13,
+        "ratchet_events": 5,
+        "ratcheted_now": 12
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 0,
+        "unfusions": 0,
+        "early_fusion": false,
+        "partial_among_holders": 1.0,
+        "fused_share": 0.0,
+        "held_counts": [
+          1,
+          1,
+          2,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          2,
+          0,
+          0,
+          0,
+          2,
+          0,
+          0,
+          2,
+          2,
+          2,
+          0,
+          0,
+          0,
+          2,
+          0,
+          0,
+          2,
+          2,
+          2,
+          0,
+          0,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 92,
+        "rate_per_culture_gen": 0.0409,
+        "mechanisms": {
+          "encounter": 4,
+          "recovery": 76,
+          "contradiction": 9,
+          "ratchet_break": 3
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 1431,
+        "per_era": 71.55
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 32,
+        "total_pop": 55849
+      },
+      "all_pass": true
+    },
+    "36": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.11,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 10
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": false,
+        "switching_now": 2,
+        "ratchet_events": 0,
+        "ratcheted_now": 0
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 0,
+        "unfusions": 0,
+        "early_fusion": false,
+        "partial_among_holders": 1.0,
+        "fused_share": 0.0,
+        "held_counts": [
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 85,
+        "rate_per_culture_gen": 0.0347,
+        "mechanisms": {
+          "recovery": 79,
+          "contradiction": 4,
+          "encounter": 2
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 656,
+        "per_era": 32.8
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 36,
+        "total_pop": 28720
+      },
+      "all_pass": false
+    },
+    "37": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.094,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 5
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 5,
+        "ratchet_events": 6,
+        "ratcheted_now": 17
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 21,
+        "unfusions": 15,
+        "early_fusion": false,
+        "partial_among_holders": 0.75,
+        "fused_share": 0.15,
+        "held_counts": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          3,
+          3,
+          3,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          1,
+          3,
+          3,
+          2,
+          2,
+          1
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 97,
+        "rate_per_culture_gen": 0.038,
+        "mechanisms": {
+          "recovery": 85,
+          "encounter": 4,
+          "contradiction": 3,
+          "ratchet_break": 5
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 2162,
+        "per_era": 108.1
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 34,
+        "total_pop": 45255
+      },
+      "all_pass": true
+    },
+    "38": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.105,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 3
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 6,
+        "ratchet_events": 3,
+        "ratcheted_now": 5
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 1,
+        "unfusions": 0,
+        "early_fusion": false,
+        "partial_among_holders": 1.0,
+        "fused_share": 0.0,
+        "held_counts": [
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          1,
+          2,
+          0,
+          2,
+          0,
+          0,
+          2,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 134,
+        "rate_per_culture_gen": 0.1276,
+        "mechanisms": {
+          "contradiction": 45,
+          "recovery": 85,
+          "encounter": 4
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 1088,
+        "per_era": 54.4
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 15,
+        "total_pop": 15372
+      },
+      "all_pass": true
+    },
+    "39": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.104,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 10
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 1,
+        "ratchet_events": 2,
+        "ratcheted_now": 2
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 4,
+        "unfusions": 3,
+        "early_fusion": false,
+        "partial_among_holders": 0.83,
+        "fused_share": 0.06,
+        "held_counts": [
+          0,
+          3,
+          0,
+          2,
+          0,
+          1,
+          0,
+          0,
+          1,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 122,
+        "rate_per_culture_gen": 0.1162,
+        "mechanisms": {
+          "contradiction": 2,
+          "recovery": 106,
+          "encounter": 14
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 608,
+        "per_era": 30.4
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 18,
+        "total_pop": 54997
+      },
+      "all_pass": true
+    },
+    "40": {
+      "terrain_decorrelation": {
+        "pass": true,
+        "nmi": 0.077,
+        "threshold": 0.3
+      },
+      "culture_area_inverted": {
+        "pass": true,
+        "count": 5
+      },
+      "seasonal_vs_ratcheted": {
+        "pass": true,
+        "switching_now": 2,
+        "ratchet_events": 1,
+        "ratcheted_now": 0
+      },
+      "fusion_contingent": {
+        "pass": true,
+        "fusions": 0,
+        "unfusions": 0,
+        "early_fusion": false,
+        "partial_among_holders": 1.0,
+        "fused_share": 0.0,
+        "held_counts": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "liberation_rare_possible": {
+        "pass": true,
+        "events": 109,
+        "rate_per_culture_gen": 0.1282,
+        "mechanisms": {
+          "encounter": 16,
+          "contradiction": 8,
+          "recovery": 85
+        }
+      },
+      "chronicle_cadence": {
+        "pass": true,
+        "surviving_entries": 580,
+        "per_era": 29.0
+      },
+      "sanity_bounds": {
+        "pass": true,
+        "living": 13,
+        "total_pop": 27017
+      },
+      "all_pass": true
+    }
+  }
+}
