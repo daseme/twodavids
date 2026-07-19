@@ -73,8 +73,16 @@ lip, so the waterline wanders inside the shore cell while *which* cells are
 water stays exactly what the record says. A skirt and floor under the world.
 Compound built forms from a small geometry forge, with per-face shading
 baked at authoring time. Colours are authored in sRGB and converted —
-see §7. Still to come: interpolated camera paths between beats, sound,
-rivers with more presence than a line.*
+see §7. Rivers are courses rather than hairlines: the segment graph is walked
+downhill from the exported elevation, accumulation counted where courses meet,
+and width follows its square root, so a river widens only where the record says
+two of them joined. They are drawn as ribbons resampled at the render mesh's
+frequency, with a meander inside the cell under the §0 elaboration rule — the
+same move the shore already makes. On seed 3 the network is genuinely marginal
+(24 unit segments; 12 of 34 nodes on the map edge, 9 already under water), so
+this reads at valley scale and vanishes at map scale, which is the record's
+fact and not the renderer's failure. Still to come: interpolated camera paths
+between beats, sound.*
 
 ## 0. The architecture in one sentence
 
@@ -268,6 +276,28 @@ over the canvas; a warm-key/cool-fill light pair; fog whose colour is always
 the sky's horizon; instanced vegetation with per-instance colour jitter;
 depth-tinted water with an analytic swell; a time-of-day gradient dome.
 
+**Where we now depart: water gets a specular term.** The paragraph below is
+still the right diagnosis of the *first* gap, but it has an expiry date, and
+water is where it expired. Lambert has no specular lobe at all, so the largest
+surface in most frames could not catch the sun and read as slate. Water alone
+is now `MeshPhongMaterial` (specular `0x9db6c4`, shininess 84), plus a fresnel
+that mixes toward `scene.fog.color` — which already *is* the sky's horizon and
+is retinted hourly, so it tracks dawn and dusk for free and never disagrees
+with the dome. The normals carry a second, finer ripple that the positions do
+not: the swell's own slope is ~0.009, flat enough that the highlight would
+spread into one featureless sheet, so the extra term stands in for waves below
+the mesh's resolution without changing the silhouette that boats sit on.
+Everything else stays Lambert; this is one surface, not a move to PBR.
+
+Tuned by A/B on a fixed frame, and the first attempt was wrong in an
+instructive way. At fresnel `pow(...,3.0) * 0.62` almost the whole lake sits at
+a grazing angle from a low camera, mixes nearly fully into an orange horizon,
+and goes brown — physically defensible and still a mistake, because it erases
+the shallow-warm/deep-cold depth tint the sheet exists to carry. `pow(...,4.5)
+* 0.34` keeps the blue where the water is deep and puts the reflected sky only
+where the angle genuinely earns it. When a physical effect and an encoded
+signal collide here, the signal wins: the viewer is a record, not a render.
+
 **What the gap actually was.** Not tone mapping, not post-processing, not
 PBR — the reference has none of those (r128, Lambert, one render call, no
 colour management). It was geometry and shadows: our terrain was 4,418
@@ -278,8 +308,27 @@ own frequency is worthless, and any painted feature must be measured for
 coverage, since a feature at 90% coverage is a wash and looks identical to a
 bug.
 
-**One inherited hazard, not yet hit.** The reference documents that every
+**One inherited hazard, now live.** The reference documents that every
 `InstancedMesh` sharing a patched material must set `instanceColor`, or the
-renderer crashes seed-dependently by draw order. That applies if we ever
+renderer crashes seed-dependently by draw order. We have an `onBeforeCompile`
+material as of the water fresnel above. It is safe *only* because exactly one
+non-instanced `Mesh` uses it — reuse `waterMat` on anything instanced and this
+becomes a real, draw-order-dependent crash. The same applies if we ever
 adopt its `onBeforeCompile` world-space albedo noise — the fifth technique,
-still unadopted.
+still unadopted, and deliberately so: that technique earns its keep on a
+surface with no other variation, and our ground already carries two per-vertex
+noise fields (mottle at 0.24, grain at 2.9) plus a fixed hillshade. Adding a
+third would most likely read as mud. Revisit it only if the ground looks flat
+*after* something has been measured, not because the list is unfinished.
+
+**A failure mode worth writing down: geometry that is built and not drawn.**
+The river ribbons rendered nothing on first build while every instrument said
+they were fine — 288 triangles, `visible: true`, a correct bounding box, no
+console error. The quads were wound from each course's own left and right, so
+their faces pointed away from the camera and `MeshLambertMaterial` culled them
+at `FrontSide`. Nothing counts that. The tell was that a bright red fill at a
+half-unit lift with `depthTest: false` changed the frame not at all — when a
+diagnostic that loud does nothing, the geometry is not being drawn rather than
+being drawn wrong, and winding is the first place to look. `DoubleSide` is the
+fix; forcing the normals to `(0,1,0)` is *not*, because DoubleSide flips the
+normal on back fragments and the water goes black.

@@ -751,29 +751,197 @@ const _wc = new THREE.Color();
 }
 const waterBaseY = new Float32Array(wpos.count);
 for (let i = 0; i < wpos.count; i++) waterBaseY[i] = wpos.getY(i);
-const water = new THREE.Mesh(waterGeo, new THREE.MeshLambertMaterial(
-  {vertexColors: true, transparent: true, opacity: 0.88}));
+// Phong, not Lambert, and this is the one place the difference is worth its
+// cost. Lambert has no specular term at all, so water physically cannot catch
+// the sun — which is why the lakes read as slate. §7 was right that PBR was
+// not the gap when the gap was geometry; now that the geometry exists, the
+// material model is the ceiling, and water is the surface that pays for it.
+const waterMat = new THREE.MeshPhongMaterial(
+  {vertexColors: true, transparent: true, opacity: 0.88,
+   specular: 0x9db6c4, shininess: 84});
+// A horizon-facing fresnel: water seen edge-on returns the sky rather than its
+// own depth. The target is the fog colour, which already *is* the sky's horizon
+// and is retinted every frame with the hour, so this tracks dawn and dusk for
+// free and never disagrees with the dome behind it.
+//
+// onBeforeCompile carries the reference's documented hazard — every
+// InstancedMesh sharing a patched material must set instanceColor. This one is
+// used by a single non-instanced Mesh, so the hazard does not apply here; it
+// would the moment this material were reused.
+waterMat.onBeforeCompile = (shader) => {
+  shader.uniforms.uHorizon = {value: new THREE.Color(0x191510)};
+  shader.fragmentShader = "uniform vec3 uHorizon;\n" + shader.fragmentShader
+    .replace("#include <opaque_fragment>", `
+      float fres = pow(1.0 - clamp(abs(dot(normalize(normal),
+                       normalize(vViewPosition))), 0.0, 1.0), 4.5);
+      outgoingLight = mix(outgoingLight, uHorizon, fres * 0.34);
+      #include <opaque_fragment>`);
+  waterMat.userData.shader = shader;
+};
+const water = new THREE.Mesh(waterGeo, waterMat);
 water.position.y = -0.03;
 scene.add(water);
 // Gentle swell: two crossed waves, small enough that nothing floating on it
 // needs to know. Boats hold their own fixed waterline.
+//
+// The normals are where the light actually lives. The swell's own slope is
+// about 0.009 — flat enough that a specular highlight would spread into one
+// featureless sheet across the whole lake — so the normal carries a second,
+// finer ripple that the *position* does not. That is a stand-in for waves
+// below the mesh's resolution, the same bargain as a normal map: it changes
+// how the surface catches light without changing its silhouette, so nothing
+// floating on it has to know either.
+const wnrm = waterGeo.attributes.normal;
 function updateWater(now) {
   const t = now * 0.0004;
   for (let i = 0; i < wpos.count; i++) {
     const x = i % G, y = Math.floor(i / G);
     wpos.array[i * 3 + 1] = waterBaseY[i]
       + Math.sin(x * 0.42 + t) * 0.022 + Math.sin(y * 0.31 - t * 1.3) * 0.018;
+    const sx = 0.00924 * Math.cos(x * 0.42 + t)
+             + 0.15 * Math.sin(x * 2.7 + t * 2.1)
+             + 0.09 * Math.sin((x + y) * 1.9 - t * 1.7);
+    const sz = 0.00558 * Math.cos(y * 0.31 - t * 1.3)
+             + 0.15 * Math.sin(y * 2.3 - t * 1.9)
+             + 0.09 * Math.cos((x - y) * 2.1 + t * 1.5);
+    const inv = 1 / Math.hypot(sx, 1, sz);
+    wnrm.array[i * 3] = -sx * inv;
+    wnrm.array[i * 3 + 1] = inv;
+    wnrm.array[i * 3 + 2] = -sz * inv;
   }
   wpos.needsUpdate = true;
+  wnrm.needsUpdate = true;
+  const sh = waterMat.userData.shader;
+  if (sh) sh.uniforms.uHorizon.value.copy(scene.fog.color);
 }
+// Rivers as courses, not as a hairline. The record gives unit segments between
+// adjacent cells and nothing else — no discharge, no stream order. But the
+// graph itself is a fact, and so is the exported elevation: water runs downhill,
+// and where two courses meet the one below carries both. Accumulation is counted
+// down that graph and width follows its square root, so a river widens for a
+// reason the record supports rather than because wide looks better.
+//
+// Ribbons, and each node carries one width and one direction (the mean of its
+// incident segments), so neighbouring quads share both edges exactly and the
+// course reads continuous through a bend instead of faceting at every cell.
+// The centreline is resampled at the render mesh's own frequency — a straight
+// chord between two cell centres cuts under a surface that curves between them,
+// which is the same lesson as the detail noise: follow the fine surface, don't
+// assume the coarse one.
+const RIVER_W = 0.085;                    // half-width at a headwater, in cells
+let RIVER_STATS = null;                   // exposed for measurement, not for use
 {
-  const pts = [];
-  for (const [x1, y1, x2, y2] of DATA.rivers)
-    pts.push(new THREE.Vector3(x1 - G / 2, heightAt(x1, y1) + 0.05, y1 - G / 2),
-             new THREE.Vector3(x2 - G / 2, heightAt(x2, y2) + 0.05, y2 - G / 2));
-  scene.add(new THREE.LineSegments(
-    new THREE.BufferGeometry().setFromPoints(pts),
-    new THREE.LineBasicMaterial({color: 0x5b7893})));
+  const node = new Map();
+  const at = (x, y) => {
+    const k = x + "," + y;
+    let n = node.get(k);
+    if (!n) node.set(k, n = {x, y, acc: 1, dirs: []});
+    return n;
+  };
+  const segs = [], outOf = new Map();
+  for (const [x1, y1, x2, y2] of DATA.rivers) {
+    const a = at(x1, y1), b = at(x2, y2);
+    // Downhill is where the water goes; a tie keeps the record's own order.
+    const [u, d] = heightAt(x1, y1) >= heightAt(x2, y2) ? [a, b] : [b, a];
+    const s = {u, d};
+    segs.push(s);
+    if (!outOf.has(u)) outOf.set(u, []);
+    outOf.get(u).push(s);
+    const dx = d.x - u.x, dy = d.y - u.y, L = Math.hypot(dx, dy) || 1;
+    u.dirs.push([dx / L, dy / L]); d.dirs.push([dx / L, dy / L]);
+  }
+  // Highest first: a node's own total is final before it is passed on, because
+  // every segment was oriented downhill above.
+  for (const n of [...node.values()]
+         .sort((p, q) => heightAt(q.x, q.y) - heightAt(p.x, p.y))) {
+    const outs = outOf.get(n) || [];
+    for (const s of outs) s.d.acc += n.acc / outs.length;
+  }
+  const dirOf = (n) => {
+    let dx = 0, dy = 0;
+    for (const [a, b] of n.dirs) { dx += a; dy += b; }
+    const L = Math.hypot(dx, dy) || 1;
+    return [dx / L, dy / L];
+  };
+  const halfOf = (n) => RIVER_W * Math.sqrt(n.acc);
+  // Shallow where it starts, deeper as it gathers — the same two colours the
+  // water sheet uses, so a river arriving at a lake does not change hue at the
+  // shore. Through THREE.Color, never raw into the buffer.
+  const RIV_HI = new THREE.Color(0x6d90a4);
+  const _rc = new THREE.Color();
+  const vs = [], cs = [];
+  const rib = (px, py, wide) => {
+    vs.push(px - G / 2, heightField(px, py) + 0.055, py - G / 2);
+    const c = _rc.copy(RIV_HI).lerp(DEEP, Math.min(1, Math.max(0, wide)));
+    cs.push(c.r, c.g, c.b);
+  };
+  // The record says a course passes through these cells. It does not say where
+  // inside them, and a channel that runs cell-centre to cell-centre reads as a
+  // canal cut across the hill. The meander is elaboration under §0 — the same
+  // move the shore already makes, where the waterline wanders inside the cell
+  // while *which* cells are water stays exactly what the record says. Sampled
+  // by position, so both segments meeting at a node displace it identically
+  // and the joint stays closed.
+  const MEANDER = 0.30;
+  const wander = (x, y) => (fbm(x * 0.85, y * 0.85, NSEED + 7700) - 0.5) * MEANDER;
+  for (const s of segs) {
+    const [ux, uy] = dirOf(s.u), [dx, dy] = dirOf(s.d);
+    const hu = halfOf(s.u), hd = halfOf(s.d);
+    let prev = null;
+    for (let i = 0; i <= SUB; i++) {
+      const t = i / SUB;
+      let cx = s.u.x + (s.d.x - s.u.x) * t, cy = s.u.y + (s.d.y - s.u.y) * t;
+      // Direction and width interpolate between the two nodes, so the shared
+      // edge with the next segment is identical on both sides of the joint.
+      const tx = ux + (dx - ux) * t, ty = uy + (dy - uy) * t;
+      const L = Math.hypot(tx, ty) || 1;
+      const nx = -ty / L, ny = tx / L;
+      const off = wander(cx, cy);
+      cx += nx * off; cy += ny * off;
+      const h = hu + (hd - hu) * t;
+      const cur = {lx: cx + nx * h, ly: cy + ny * h,
+                   rx: cx - nx * h, ry: cy - ny * h,
+                   w: (h - RIVER_W) / (RIVER_W * 2)};
+      if (prev) {
+        rib(prev.lx, prev.ly, prev.w); rib(prev.rx, prev.ry, prev.w);
+        rib(cur.rx, cur.ry, cur.w);
+        rib(prev.lx, prev.ly, prev.w); rib(cur.rx, cur.ry, cur.w);
+        rib(cur.lx, cur.ly, cur.w);
+      }
+      prev = cur;
+    }
+  }
+  const rivGeo = new THREE.BufferGeometry();
+  rivGeo.setAttribute("position", new THREE.Float32BufferAttribute(vs, 3));
+  rivGeo.setAttribute("color", new THREE.Float32BufferAttribute(cs, 3));
+  // Computed, and deliberately not forced to straight up. These faces are
+  // back-facing as often as not, and DoubleSide flips whatever normal it is
+  // given for a back fragment — so an honest (0,1,0) arrives at the shader as
+  // (0,-1,0), the water is lit from underneath, and the course renders as
+  // black tarmac. Let the flip cancel the winding instead.
+  rivGeo.computeVertexNormals();
+  // polygonOffset rather than a taller lift: the ribbon should sit *in* the
+  // valley, not hover over it, and the fine mesh is close underneath.
+  //
+  // DoubleSide is not decoration. The quads below are wound from the segment's
+  // own left/right, and which way that faces depends on the direction the
+  // course happens to run — half the network would be back-facing and simply
+  // gone. That failure is invisible in every count: the geometry is built, the
+  // mesh is in the scene, the bounding box is right, and nothing draws.
+  const riv = new THREE.Mesh(rivGeo, new THREE.MeshLambertMaterial(
+    {vertexColors: true, transparent: true, opacity: 0.92,
+     side: THREE.DoubleSide,
+     polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2}));
+  riv.receiveShadow = true;
+  scene.add(riv);
+  rivGeo.computeBoundingBox();
+  const bb = rivGeo.boundingBox;
+  RIVER_STATS = {segments: segs.length, nodes: node.size,
+                 maxAcc: Math.max(...[...node.values()].map(n => n.acc)),
+                 tris: vs.length / 9,
+                 bbox: [bb.min.toArray().map(v => +v.toFixed(2)),
+                        bb.max.toArray().map(v => +v.toFixed(2))],
+                 visible: riv.visible};
 }
 
 // ---- borders are not facts (§3.1) -------------------------------------------
@@ -2428,6 +2596,19 @@ window.__dawn = {
     const x = Math.round(m.position.x + G / 2), y = Math.round(m.position.z + G / 2);
     return {x, y, onWater: !!(DATA.water[x] && DATA.water[x][y])};
   }),
+  // Aim the rig at a grid cell, so a shot of a named place is repeatable
+  // between builds instead of being hunted for with the mouse. Camera only —
+  // it moves the view, never the history.
+  look: (x, y, dist, pitch) => {
+    toWorld(x, y, cam.fTarget);
+    cam.focus.copy(cam.fTarget); cam.vel.set(0, 0, 0);
+    cam.dist = cam.dTarget = dist ?? G * 0.18;
+    cam.pitch = cam.pTarget = pitch ?? 0.55;
+  },
+  // The river graph as built: segment and node counts against the record's own,
+  // the largest accumulation reached, and the triangles it cost. A course that
+  // renders as a hairline again will show up here as maxAcc === 1.
+  rivers: () => RIVER_STATS,
   slotPos: (cid, id) => {
     const m = groups.get(String(cid))?.slots.get(id)?.mesh;
     return m && m.visible ? {x: +m.position.x.toFixed(4), z: +m.position.z.toFixed(4)} : null;
