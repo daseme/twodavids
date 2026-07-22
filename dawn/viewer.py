@@ -49,7 +49,8 @@ def build_viewer_data(run_dir: Path) -> dict:
          "structure": r.get("structure"), "displaced": r.get("displaced")}
         for r in records
         if r["type"] in ("ratchet", "hardening", "fusion", "unfusion",
-                         "liberation", "schism", "extinction", "succession")
+                         "liberation", "schism", "extinction", "succession",
+                         "hard_winter")
     ]
     # The margins: every entry as it was written, with its eventual fate —
     # chronicle attrition rendered as ambience (VIEWER.md §4). An entry that

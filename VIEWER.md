@@ -84,6 +84,36 @@ this reads at valley scale and vanishes at map scale, which is the record's
 fact and not the renderer's failure. Still to come: interpolated camera paths
 between beats, sound.*
 
+**The second visual pass (2026-07-22)** gave the world its hours and its
+weather. Night is no longer a dimmer day: every earned hearth, lodge and keep
+carries a fire-glow sprite that flickers against the dark, the ember beds
+brighten as the light fails, and one smoke column per living settlement —
+thinning at night, never rising from an unattested mound — makes habitation
+readable from altitude, which was the one thing the map could not say at
+distance. The sun's arc now follows the season the record asserts: summer
+long and high, winter short, low and pale. `hard_winter`, specified in §1 and
+unrendered until now, lands as weather — but the journal's events are
+per-culture (a people's wellbeing breaking in the cold), and on seed 3 fully
+998 of 1000 winters hit someone, so a storm keyed to any event would have
+been permanent. Severity is instead the share of the living hit that season:
+past a third of the world hungry, snow falls, the horizon closes in, and the
+light goes flat; one camp's bad winter stays their dossier's news. Measured:
+359 of 998 winters carry some snow, the median a flurry, peak severity 0.98 —
+storms are earned, not ambient. The terrain carries baked occlusion folded
+into the hillshade (hollows sit darker at any hour, measured on the coarse
+surface under the same rule as slope) and a noisy foam line hugs the
+waterline the record asserts. Fireflies work summer nights over wet ground,
+one draw call, per-point twinkle in the colour buffer. A **wander mode**
+(`w`) walks the world at eye height against the decorated surface — camera
+only, §5 untouched; drag steers, the wheel is pace, the world's edge turns
+you. The scrubber now shows the history's skeleton (one notch per structural
+beat) and eras announce themselves as they turn while the film rolls —
+a scrub must not flash its chapter headings. All of it is ambience of the
+trees' standing: deterministic from bundle + seed, evidence-free, and the
+new systems are instrumented in `window.__dawn` (glows, smoke, snow severity,
+wander state) so the page can still be checked by a driver rather than by
+eye. Still to come: interpolated camera paths between beats, sound.*
+
 ## 0. The architecture in one sentence
 
 Because the sim is deterministic and journal-replayable, the viewer is a

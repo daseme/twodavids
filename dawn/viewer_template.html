@@ -46,7 +46,6 @@ where the full treatment in VIEWER.md §§2–4 is still to come. -->
   }
   @keyframes panel-in { from { opacity: 0; transform: translateY(8px); } }
   @keyframes panel-in-x { from { opacity: 0; transform: translateX(-50%) translateY(8px); } }
-  @keyframes card-in { from { opacity: 0; transform: translateY(8px); } }
   @keyframes note-in { from { opacity: 0; transform: translateX(-50%) translateY(6px); } }
   #masthead { top: 14px; left: 14px; padding: 10px 16px 8px; }
   #masthead h1 { font-size: 17px; font-weight: 600; letter-spacing: 0.02em; }
@@ -57,15 +56,20 @@ where the full treatment in VIEWER.md §§2–4 is still to come. -->
   #clock .season { font-size: 11px; letter-spacing: 0.14em;
     text-transform: uppercase; color: var(--ink-2); }
   #beat { right: 14px; top: 84px; width: 320px; padding: 12px 15px;
-    display: none; }
-  #beat.on { display: block; animation: card-in 420ms var(--ease); }
+    opacity: 0; visibility: hidden; transform: translateY(6px);
+    transition: opacity 240ms var(--ease), transform 240ms var(--ease),
+                visibility 0s linear 240ms; }
+  #beat.on { opacity: 1; visibility: visible; transform: none;
+    transition: opacity 420ms var(--ease), transform 420ms var(--ease),
+                visibility 0s; }
   #beat .kind { font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase;
     color: var(--accent); }
   #beat .quote { font-size: 13.5px; line-height: 1.45; margin: 7px 0; text-wrap: pretty; }
   #beat .cite { font-size: 11px; color: var(--ink-2); font-style: italic;
     border-top: 1px solid var(--rule); padding-top: 6px; }
   #bar { left: 50%; transform: translateX(-50%); bottom: 14px; width: min(760px, 92vw);
-    padding: 9px 14px; display: flex; gap: 12px; align-items: center; }
+    padding: 9px 14px; display: flex; gap: 12px; align-items: center;
+    border-radius: 13px; }
   #bar button { font: inherit; font-size: 12px; background: var(--parchment-2);
     color: var(--ink); border: 1px solid var(--rule); border-radius: 4px;
     padding: 4px 14px; cursor: pointer;
@@ -77,7 +81,13 @@ where the full treatment in VIEWER.md §§2–4 is still to come. -->
   #bar #play { background: var(--accent); color: var(--parchment);
     border-color: rgba(46,36,23,0.35); min-width: 58px; }
   #bar #play:hover { background: #9d4130; }
-  #scrub { flex: 1; accent-color: var(--accent); cursor: pointer; }
+  #scrubwrap { position: relative; flex: 1; display: flex; align-items: center; }
+  #scrub { width: 100%; accent-color: var(--accent); cursor: pointer; }
+  /* The scrubber carries the history's shape: one notch per structural beat. */
+  #marks { position: absolute; left: 0; right: 0; top: -1px; height: 4px;
+    pointer-events: none; }
+  #marks i { position: absolute; width: 2px; height: 4px; border-radius: 1px;
+    opacity: 0.85; transform: translateX(-1px); }
   #speed { font-size: 11px; color: var(--ink-2); min-width: 52px;
     text-align: right; font-variant-numeric: tabular-nums; }
   #help { position: absolute; left: 14px; bottom: 14px; font-size: 10.5px;
@@ -105,15 +115,20 @@ where the full treatment in VIEWER.md §§2–4 is still to come. -->
     mask-image: linear-gradient(115deg, #000 55%, transparent 88%); }
   .marg.redacted .txt { text-decoration: line-through 2px rgba(46,36,23,0.55); }
   #dossier { left: 14px; top: 84px; width: 300px; padding: 11px 14px;
-    display: none; max-height: 74vh; overflow-y: auto;
-    scrollbar-width: thin; scrollbar-color: var(--rule) transparent; }
-  #dossier.on { display: block; animation: card-in 360ms var(--ease); }
+    max-height: 74vh; overflow-y: auto;
+    scrollbar-width: thin; scrollbar-color: var(--rule) transparent;
+    opacity: 0; visibility: hidden; transform: translateY(6px);
+    transition: opacity 240ms var(--ease), transform 240ms var(--ease),
+                visibility 0s linear 240ms; }
+  #dossier.on { opacity: 1; visibility: visible; transform: none;
+    transition: opacity 360ms var(--ease), transform 360ms var(--ease),
+                visibility 0s; }
   #dossier h2 { font-size: 15px; font-weight: 600; display: flex;
     align-items: center; gap: 7px; }
   #dossier h2 .sw { width: 11px; height: 11px; border-radius: 50%;
     box-shadow: 0 0 0 1px rgba(46,36,23,0.18); }
   #dossier .close { margin-left: auto; cursor: pointer; color: var(--ink-2);
-    font-size: 15px; line-height: 1; padding: 6px 8px; margin: -4px -8px 0 0;
+    font-size: 15px; line-height: 1; padding: 13px 15px; margin: -11px -15px 0 0;
     border-radius: 4px;
     transition: color 120ms var(--ease), background 120ms var(--ease); }
   #dossier .close:hover { color: var(--accent); background: rgba(138,51,36,0.08); }
@@ -148,8 +163,16 @@ where the full treatment in VIEWER.md §§2–4 is still to come. -->
     background: rgba(25,21,16,0.82); border: 1px solid rgba(201,183,142,0.25);
     border-radius: 4px; padding: 6px 14px; backdrop-filter: blur(2px); }
   #modenote.on { display: block; animation: note-in 400ms var(--ease); }
+  #eracard { position: fixed; left: 50%; top: 20%; z-index: 2;
+    transform: translateX(-50%); pointer-events: none; text-align: center;
+    font-size: 25px; font-style: italic; letter-spacing: 0.03em;
+    color: #efe4c9; text-shadow: 0 1px 3px rgba(10,7,4,0.8),
+      0 4px 22px rgba(10,7,4,0.65);
+    opacity: 0; transition: opacity 800ms var(--ease); }
+  #eracard.on { opacity: 1; }
   @media (prefers-reduced-motion: reduce) {
-    #beat.on, #dossier.on, #modenote.on { animation: none; }
+    #beat, #dossier, #beat.on, #dossier.on { transition: none; }
+    #modenote.on { animation: none; }
   }
 </style>
 
@@ -178,12 +201,15 @@ where the full treatment in VIEWER.md §§2–4 is still to come. -->
 <div class="panel" id="bar">
   <button id="play">play</button>
   <button id="dig" title="Render only what the surviving record supports">dig</button>
-  <input id="scrub" type="range" min="0" value="0" step="1">
+  <button id="wander" title="Walk the world at eye height — drag steers, the wheel is pace">wander</button>
+  <div id="scrubwrap"><div id="marks"></div><input id="scrub" type="range" min="0" value="0" step="1"></div>
   <div id="speed">6 t/s</div>
 </div>
 <div id="modenote"></div>
+<div id="eracard"></div>
 <div id="help">drag orbit · wheel zoom · click a name to visit · space
-  play/pause · a dig mode · click a people for its dossier — the viewer watches; the only causal verb is argue</div>
+  play/pause · a dig mode · w walk the world (drag steers, wheel is pace) ·
+  click a people for its dossier — the viewer watches; the only causal verb is argue</div>
 
 <script id="bundle" type="application/json">__DATA__</script>
 <!-- Three.js r178, vendored and inlined. Its ES module wiring is resolved at
@@ -396,6 +422,10 @@ sun.shadow.normalBias = 0.06;
 const skyFill = new THREE.HemisphereLight(0x9fb4d8, 0x5b5340, 0.85);
 scene.add(sun, skyFill);
 const SKY_DAY = new THREE.Color(0x9fb4d8), SKY_NIGHT = new THREE.Color(0x2b3560);
+// The one directional carries both sun and moon, so its colour swings with
+// the hour as its height does: warm key by day, cool moonlight by night.
+const SUN_DAY = new THREE.Color(0xffe3b0), SUN_NIGHT = new THREE.Color(0x8fa3d8);
+const SUN_WINTER = new THREE.Color(0xdfe9f5);   // the year's pale noon
 
 // ---- the sky: a painted dome, sun, moon and stars (§2 ambience) -------------
 // Ambience only. The brief's comets, eclipses and red moons are ANNALS omens —
@@ -435,13 +465,50 @@ const stars = new THREE.Points(starGeo, new THREE.PointsMaterial(
 stars.renderOrder = -1;
 scene.add(stars);
 
-const discGeo = new THREE.CircleGeometry(G * 0.075, 24);
-const sunDisc = new THREE.Mesh(discGeo, new THREE.MeshBasicMaterial(
-  {color: 0xffe9b8, fog: false, depthWrite: false, transparent: true}));
-const moonDisc = new THREE.Mesh(discGeo, new THREE.MeshBasicMaterial(
-  {color: 0xdfe4f2, fog: false, depthWrite: false, transparent: true}));
+// A hard-edged circle against the painted dome reads as a sticker; the disc
+// should dissolve into the sky it lights. Radial-gradient sprites instead —
+// a bright core whose falloff reaches past where the old geometry's edge was.
+// Sprites face the camera on their own, so there is no per-frame lookAt.
+function glowSprite(core, halo, size) {
+  const cv = document.createElement("canvas"); cv.width = cv.height = 128;
+  const g = cv.getContext("2d");
+  const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grad.addColorStop(0, core);
+  grad.addColorStop(0.26, core);
+  grad.addColorStop(0.55, halo);
+  grad.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = grad; g.fillRect(0, 0, 128, 128);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial(
+    {map: new THREE.CanvasTexture(cv), fog: false, depthWrite: false,
+     transparent: true}));
+  sp.scale.setScalar(size);
+  return sp;
+}
+const sunDisc = glowSprite("rgba(255,233,184,1)", "rgba(232,150,74,0.35)", G * 0.42);
+const moonDisc = glowSprite("rgba(223,228,242,0.95)", "rgba(159,180,216,0.25)", G * 0.30);
 sunDisc.renderOrder = moonDisc.renderOrder = -1;
 scene.add(sunDisc, moonDisc);
+
+// Fire and smoke textures: soft radial sprites, the same painting discipline
+// as the sun and moon. A fire is a light the record earns (hearth, lodge,
+// keep — §3.2); smoke says only "people are here", which the record says
+// louder. Both are ambience, not events.
+function softTex(stops) {
+  const cv = document.createElement("canvas"); cv.width = cv.height = 64;
+  const g = cv.getContext("2d");
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  for (const [at, col] of stops) grad.addColorStop(at, col);
+  g.fillStyle = grad; g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(cv);
+}
+const fireGlowTex = softTex([[0, "rgba(255,196,116,0.95)"],
+                             [0.35, "rgba(226,124,52,0.38)"],
+                             [1, "rgba(0,0,0,0)"]]);
+const smokeTex = softTex([[0, "rgba(196,192,182,0.55)"],
+                          [0.55, "rgba(178,174,165,0.22)"],
+                          [1, "rgba(0,0,0,0)"]]);
+// The hour of the day, kept for the systems that care (fires, fireflies).
+let curDayness = 1;
 
 // Authored as hex, deliberately: THREE.Color converts hex from sRGB into the
 // renderer's working space, while raw floats written into a colour buffer are
@@ -626,6 +693,7 @@ const vertGrain = new Float32Array(pos.count);
 const vertForest = new Float32Array(pos.count);
 const vertClump = new Float32Array(pos.count);
 const vertElev = new Float32Array(pos.count);
+const vertFoam = new Float32Array(pos.count);
 // Forest as a field rather than a per-cell flag, so a wood has an edge that
 // wanders across cells instead of stopping at one.
 const forestGrid = Array.from({length: G}, (_, x) => {
@@ -640,12 +708,21 @@ const elevGrid = Array.from({length: G}, (_, x) => {
 });
 for (let i = 0; i < pos.count; i++) {
   const fx = (i % RES) / SUB, fy = Math.floor(i / RES) / SUB;
-  pos.setXYZ(i, fx - G / 2, heightField(fx, fy), fy - G / 2);
+  const hv = heightField(fx, fy);
+  pos.setXYZ(i, fx - G / 2, hv, fy - G / 2);
   vertMottle[i] = mottleAt(fx, fy);
   vertGrain[i] = 0.94 + fbm(fx * 2.9, fy * 2.9, NSEED + 4100) * 0.12;
   vertForest[i] = bilinear(forestGrid, fx, fy);
   vertClump[i] = fbm(fx * 1.15, fy * 1.15, NSEED + 4200);
   vertElev[i] = bilinear(elevGrid, fx, fy);
+  // Foam: a broken bright line that hugs the waterline the record asserts.
+  // It lives on the bank and the first shallows, noisy so it reads as surf
+  // rather than a painted stroke.
+  const dwv = bilinear(distWater, fx, fy);
+  vertFoam[i] = dwv < 1.4
+    ? Math.max(0, 1 - Math.abs(hv - 0.015) / 0.11) * Math.min(1, 1.4 - dwv)
+      * (0.45 + 0.55 * fbm(fx * 1.9, fy * 1.9, NSEED + 5100))
+    : 0;
 }
 terrainGeo.computeVertexNormals();
 // Slope per vertex, for rock on the steep faces. This is the one ground
@@ -676,6 +753,24 @@ const hillshade = new Float32Array(pos.count);
   for (let i = 0; i < pos.count; i++) {
     n.fromBufferAttribute(nrm, i);
     hillshade[i] = 0.84 + 0.30 * Math.max(0, Math.min(1, n.dot(SHADE_L)));
+  }
+}
+// Baked occlusion: a hollow should sit darker than a shoulder at any hour,
+// and Lambert gives nothing for free. Concavity is measured on the *coarse*
+// surface — the same rule as slope: landform, not decoration noise — and
+// folded into the hillshade, so it costs nothing per frame and never moves.
+{
+  const R = 0.85, DIRS = 8;
+  for (let i = 0; i < pos.count; i++) {
+    const fx = (i % RES) / SUB, fy = Math.floor(i / RES) / SUB;
+    const h = bilinear(cellH, fx, fy);
+    let occ = 0;
+    for (let k = 0; k < DIRS; k++) {
+      const a = k / DIRS * Math.PI * 2;
+      occ += Math.max(0, bilinear(cellH, fx + Math.cos(a) * R,
+                                        fy + Math.sin(a) * R) - h - 0.02);
+    }
+    hillshade[i] *= Math.max(0.70, 1 - (occ / DIRS) * 1.1);
   }
 }
 terrainGeo.setAttribute("color",
@@ -1010,6 +1105,7 @@ function sampleTint(fx, fy, out) {
 const ROCK = new THREE.Color(0x8b8478), ROCK_D = new THREE.Color(0x6a655d);
 const UNDER = new THREE.Color(0x3d5330), CROWN = new THREE.Color(0x7f9d4f);
 const WORN = new THREE.Color(0x9a8867);
+const FOAM = new THREE.Color(0xdde4e2);
 const _sc1 = new THREE.Color(), _sc2 = new THREE.Color();
 // Wear accumulates over the whole run rather than tracking the current camp:
 // the ground remembers everyone who has stood on it, which is the same claim
@@ -1109,6 +1205,8 @@ function paintGround(tick) {
       const snow = Math.max(0, Math.min(0.78, (vertElev[i] - 0.30) * 1.7)) * (1 - s * 0.75);
       if (snow > 0) _sc1.lerp(snowTmp, snow);
     }
+    const fo = vertFoam[i];
+    if (fo > 0.03) _sc1.lerp(FOAM, Math.min(0.40, fo * 0.5));
     const k = vertMottle[i] * vertGrain[i] * hillshade[i];
     col.setXYZ(i, _sc1.r * k, _sc1.g * k, _sc1.b * k);
   }
@@ -1743,6 +1841,20 @@ function placeSlot(g, cid, id, spot, x, y, scale, now) {
     if (spot.kind === "crownUp") m.rotation.x = Math.PI / 2;
     m.userData.kind = spot.kind;
     slot.kind = spot.kind;
+    // Firelight follows the forms that carry fire: the earned hearth, and
+    // the roof someone keeps. The glow is a child of the mesh, so it goes
+    // out with the form — a struck camp's fires are struck too.
+    if (slot.glow) { m.remove(slot.glow); slot.glow = null; }
+    if (spot.kind === "hearth" || spot.kind === "lodge" || spot.kind === "keep") {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial(
+        {map: fireGlowTex, color: 0xffa050, transparent: true, opacity: 0,
+         blending: THREE.AdditiveBlending, depthWrite: false}));
+      sp.scale.setScalar(spot.kind === "hearth" ? 0.5 : 0.7);
+      sp.position.y = spot.kind === "hearth" ? 0.12 : 0.18;
+      m.add(sp);
+      slot.glow = sp;
+      slot.phase = hash2(m.id, 7, NSEED + 6400) * 6.283;
+    }
   }
   // Regalia announce themselves: the crown swells and settles after fusion.
   if (id === "crown" && crownPulse && crownPulse.cid === +cid) {
@@ -2053,6 +2165,150 @@ for (let i = 0; i < 4; i++) {
   light.position.y = 0.3; g.add(light);
   g.visible = false; scene.add(g); firePool.push(g);
 }
+// ---- hearth-light and smoke: a settlement is awake --------------------------
+// Neither is an event. The glow and the column say only "people are here,
+// keeping fire", which the record already asserts by the settlement standing
+// at all — ambience of the same standing as the trees. Smoke thins at night
+// (you see the fire instead) and never rises from an unattested mound.
+const SMOKE_WIND = [0.75, 0.35];          // the prevailing wind, xz
+const smokePuffs = [];
+for (let i = 0; i < 48; i++) {
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial(
+    {map: smokeTex, color: 0x9d9a90, transparent: true, opacity: 0,
+     depthWrite: false}));
+  sp.visible = false; scene.add(sp); smokePuffs.push(sp);
+}
+function updateHearthlight(now) {
+  const nightF = 1 - curDayness;
+  MAT.ember.emissiveIntensity = 1 + nightF * 2.2;   // beds glow against the dark
+  let e = 0;
+  for (const [cid, g] of groups) {
+    for (const [, slot] of g.slots) {
+      if (!slot.glow || !slot.mesh.visible) continue;
+      slot.glow.material.opacity = nightF *
+        (0.42 + 0.30 * Math.abs(Math.sin(now * 0.011 + slot.phase))
+              + 0.12 * Math.abs(Math.sin(now * 0.031 + slot.phase * 1.7)));
+    }
+    if (g.anchor && g.matKey !== "0" && e + 3 <= smokePuffs.length) {
+      const wy = Math.max(0, groundY(g.anchor[0], g.anchor[1])) + 0.42;
+      for (let j = 0; j < 3; j++) {
+        const sp = smokePuffs[e++];
+        const phase = hash2(+cid, j, NSEED + 6500);
+        const u = (now * 0.000055 * (1 + j * 0.18) + phase) % 1;
+        const sway = Math.sin(now * 0.0006 + phase * 9) * 0.08 * u;
+        sp.position.set(
+          g.anchor[0] - G / 2 + SMOKE_WIND[0] * u * 1.1 + sway,
+          wy + u * 1.15,
+          g.anchor[1] - G / 2 + SMOKE_WIND[1] * u * 1.1 + sway * 0.6);
+        sp.scale.setScalar(0.16 + u * 0.55);
+        sp.material.opacity = Math.sin(Math.PI * u) * 0.15 * (0.3 + 0.7 * curDayness);
+        sp.visible = true;
+      }
+    }
+  }
+  for (; e < smokePuffs.length; e++) smokePuffs[e].visible = false;
+}
+
+// ---- hard winters: the one weather the record asserts -----------------------
+// VIEWER.md §1: weather is not recorded, so the viewer renders season plus
+// hard_winter events and nothing finer. This is that second half. While a
+// recorded hard winter grips, snow falls, the horizon closes in, and the
+// light goes pale and flat (applied where the hour is set, below).
+const hardWinters = new Map();   // winter tick -> cultures hit
+for (const e of (DATA.events2 || []))
+  if (e.type === "hard_winter")
+    hardWinters.set(e.tick, (hardWinters.get(e.tick) || 0) + 1);
+function winterSeverity(t) {
+  // A hard_winter event is per-culture (a people's wellbeing broke in the
+  // cold), and most winters hit someone — so the storm is graded by the share
+  // of the living hit that season. One camp's bad winter is their dossier's
+  // news; a third of the world hungry at once is weather you can see.
+  let s = 0;
+  for (const [et, n] of hardWinters) {
+    const d = Math.abs(t - et);
+    if (d >= 2) continue;
+    const frac = n / Math.max(1, Object.keys(summaryAt(et).c).length);
+    s = Math.max(s, Math.max(0, (frac - 0.3) / 0.35) * (1 - d / 2));
+  }
+  return Math.min(1, s);
+}
+const SNOW_N = 700, SNOW_BOX = G * 0.7;
+const snowGeo = new THREE.BufferGeometry();
+{
+  const xyz = new Float32Array(SNOW_N * 3);
+  for (let i = 0; i < SNOW_N; i++) {
+    xyz[i * 3] = (hash2(i, 1, NSEED + 6601) - 0.5) * SNOW_BOX;
+    xyz[i * 3 + 1] = hash2(i, 2, NSEED + 6602) * 8;
+    xyz[i * 3 + 2] = (hash2(i, 3, NSEED + 6603) - 0.5) * SNOW_BOX;
+  }
+  snowGeo.setAttribute("position", new THREE.BufferAttribute(xyz, 3));
+}
+const snowfall = new THREE.Points(snowGeo, new THREE.PointsMaterial(
+  {color: 0xe8ecf2, size: 0.055, sizeAttenuation: true,
+   transparent: true, opacity: 0, depthWrite: false}));
+snowfall.visible = false;
+scene.add(snowfall);
+const FOG_NEAR = scene.fog.near, FOG_FAR = scene.fog.far;
+function updateWinter(t, now) {
+  const sev = winterSeverity(t);
+  snowfall.visible = sev > 0.02;
+  if (!snowfall.visible) {
+    if (scene.fog.near !== FOG_NEAR) { scene.fog.near = FOG_NEAR; scene.fog.far = FOG_FAR; }
+    return;
+  }
+  // The storm centres on the camera: the cloud travels with the view.
+  snowfall.position.set(camera.position.x, 0, camera.position.z);
+  const p = snowGeo.attributes.position;
+  for (let i = 0; i < SNOW_N; i++) {
+    let y = p.array[i * 3 + 1] - 0.028 - (i % 5) * 0.004;
+    if (y < 0) y += 8;
+    p.array[i * 3 + 1] = y;
+    p.array[i * 3] += Math.sin(now * 0.0011 + i) * 0.004;
+  }
+  p.needsUpdate = true;
+  snowfall.material.opacity = sev * 0.9;
+  scene.fog.near = FOG_NEAR + (G * 0.25 - FOG_NEAR) * sev;
+  scene.fog.far = FOG_FAR + (G * 1.5 - FOG_FAR) * sev;
+}
+
+// ---- fireflies: summer nights over the wet ground ----------------------------
+// Biome elaboration, same standing as the trees: they say nothing about
+// anybody. Twinkle is per-point brightness, so it stays one draw call.
+const FF_N = 140;
+const fireflyGeo = new THREE.BufferGeometry();
+{
+  const xyz = new Float32Array(FF_N * 3), cols = new Float32Array(FF_N * 3);
+  let placed = 0, tries = 0;
+  while (placed < FF_N && tries++ < 4000) {
+    const x = Math.floor(hash2(tries, 1, NSEED + 6701) * G);
+    const y = Math.floor(hash2(tries, 2, NSEED + 6702) * G);
+    if (DATA.water[x][y]) continue;
+    if (distWater[x][y] > 3.2 && DATA.biome[x][y] !== 1) continue;
+    xyz[placed * 3] = x + hash2(tries, 3, NSEED + 6703) - 0.5 - G / 2;
+    xyz[placed * 3 + 1] = Math.max(0.1, heightAt(x, y)) + 0.15
+                          + hash2(tries, 5, NSEED + 6705) * 0.5;
+    xyz[placed * 3 + 2] = y + hash2(tries, 4, NSEED + 6704) - 0.5 - G / 2;
+    placed++;
+  }
+  fireflyGeo.setAttribute("position", new THREE.BufferAttribute(xyz, 3));
+  fireflyGeo.setAttribute("color", new THREE.BufferAttribute(cols, 3));
+}
+const fireflies = new THREE.Points(fireflyGeo, new THREE.PointsMaterial(
+  {size: 0.05, sizeAttenuation: true, vertexColors: true, transparent: true,
+   opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false}));
+fireflies.visible = false;
+scene.add(fireflies);
+function updateFireflies(now) {
+  const on = (Math.floor(curTick) % 4 === 1) ? (1 - curDayness) : 0;
+  fireflies.visible = on > 0.05;
+  if (!fireflies.visible) return;
+  const c = fireflyGeo.attributes.color;
+  for (let i = 0; i < FF_N; i++) {
+    const k = on * Math.pow(Math.max(0, Math.sin(now * 0.0016 + i * 2.39)), 6);
+    c.array[i * 3] = k * 0.75; c.array[i * 3 + 1] = k; c.array[i * 3 + 2] = k * 0.35;
+  }
+  c.needsUpdate = true;
+}
 const va = new THREE.Vector3(), vb = new THREE.Vector3();
 let beatFire = null;   // [a, b] culture pair while an encounter card is up
 function updateMotion(t, now) {
@@ -2148,7 +2404,54 @@ const cam = {
   yaw: 0.8, pitch: 0.9, dist: G * 1.15, dTarget: G * 1.15, vel: new THREE.Vector3(),
   pTarget: null,   // director-set pitch; released to the viewer on drag
 };
+// ---- wander mode: be in the world, not above it ------------------------------
+// The camera is the viewer's only presence here, and walking it touches
+// nothing (§5). A slow glide at eye height over the surface actually drawn —
+// the detail mesh, the rivers, the shores all repay the close reading they
+// were built for. `w` toggles; drag steers; the wheel is pace.
+let wander = null;   // {x, z, heading, pitch, speed, y}
+function setWander(on) {
+  document.getElementById("wander").classList.toggle("on", !!on);
+  if (on) {
+    const dir = v3.copy(cam.fTarget).sub(camera.position);
+    wander = {x: camera.position.x, z: camera.position.z,
+              heading: Math.atan2(dir.z, dir.x), pitch: 0, speed: 1.6,
+              y: Math.max(0.02, heightField(camera.position.x + G / 2,
+                                            camera.position.z + G / 2)) + 0.55};
+  } else {
+    // Hand the orbit rig back where the walk ended, looking the same way.
+    if (wander) {
+      cam.fTarget.set(wander.x + Math.cos(wander.heading) * G * 0.1, 0,
+                      wander.z + Math.sin(wander.heading) * G * 0.1);
+      cam.focus.copy(cam.fTarget); cam.vel.set(0, 0, 0);
+      cam.dTarget = G * 0.3; cam.pTarget = null;
+    }
+    wander = null;
+  }
+}
 function camStep(dt) {
+  if (wander) {
+    const w = wander;
+    // A quiet meander under the viewer's steering, so an untouched walk
+    // still goes somewhere.
+    w.heading += (fbm(w.x * 0.13 + 31.7, w.z * 0.13 + 7.1, NSEED + 6100) - 0.5) * dt * 0.6;
+    let nx = w.x + Math.cos(w.heading) * w.speed * dt;
+    let nz = w.z + Math.sin(w.heading) * w.speed * dt;
+    const lim = G / 2 - 1;
+    if (Math.abs(nx) > lim || Math.abs(nz) > lim) {   // the world's edge turns you
+      w.heading += Math.PI * 0.5;
+      nx = Math.max(-lim, Math.min(lim, nx));
+      nz = Math.max(-lim, Math.min(lim, nz));
+    }
+    w.x = nx; w.z = nz;
+    const gy = Math.max(0.02, heightField(w.x + G / 2, w.z + G / 2)) + 0.55;
+    w.y += (gy - w.y) * Math.min(1, dt * 4);
+    camera.position.set(w.x, w.y, w.z);
+    const lx = w.x + Math.cos(w.heading) * 2.2, lz = w.z + Math.sin(w.heading) * 2.2;
+    const ly = Math.max(0.02, heightField(lx + G / 2, lz + G / 2)) + 0.55 - w.pitch;
+    camera.lookAt(lx, ly, lz);
+    return;
+  }
   // Critically-damped-ish spring toward the focus target; the altitude bump
   // during long flights gives the curved path of the ANNALS rig.
   const k = 3.2, d = 2 * Math.sqrt(k);
@@ -2197,12 +2500,22 @@ stage.addEventListener("pointerdown", e => { dragging = true; px = e.clientX; py
 addEventListener("pointerup", () => dragging = false, sig);
 addEventListener("pointermove", e => {
   if (!dragging) return;
+  if (wander) {
+    wander.heading -= (e.clientX - px) * 0.004;
+    wander.pitch = Math.min(0.7, Math.max(-0.4, wander.pitch + (e.clientY - py) * 0.003));
+    px = e.clientX; py = e.clientY;
+    return;
+  }
   cam.pTarget = null;   // the viewer took the wheel
   cam.yaw += (e.clientX - px) * 0.005;
   cam.pitch = Math.min(1.35, Math.max(0.25, cam.pitch + (e.clientY - py) * 0.004));
   px = e.clientX; py = e.clientY;
 }, sig);
 stage.addEventListener("wheel", e => {
+  if (wander) {
+    wander.speed = Math.min(6, Math.max(0.3, wander.speed * (1 - e.deltaY * 0.001)));
+    return;
+  }
   cam.dTarget = Math.min(G * 2.2, Math.max(G * 0.12, cam.dTarget * (1 + e.deltaY * 0.001)));
 }, {passive: true, signal: ctl.signal});
 
@@ -2236,6 +2549,22 @@ for (const d of DATA.deliberations)
               speaker: d.speaker, stance: d.stance, model: d.model,
               other: d.other});
 beats.sort((a, b) => a.tick - b.tick || (PRIORITY[b.kind] || 0) - (PRIORITY[a.kind] || 0));
+// The scrubber carries the history's shape: one notch per structural beat, so
+// the run's skeleton is visible before it is played.
+{
+  const marksEl = document.getElementById("marks");
+  const KIND_COL = {fusion: "#c9a227", ratchet: "#2e2417", unfusion: "#b0623a",
+                    liberation: "#5a7248", schism: "#7a5a8a", extinction: "#4a4a4a",
+                    hardening: "#8a6a3a"};
+  for (const b of beats) {
+    if ((PRIORITY[b.kind] || 0) < 5) continue;
+    const i = document.createElement("i");
+    i.style.left = (b.tick / (T - 1) * 100) + "%";
+    i.style.background = KIND_COL[b.kind] || "#8a3324";
+    i.title = `${b.kind.replace("_", " ")} · year ${Math.floor(b.tick / 4)}`;
+    marksEl.appendChild(i);
+  }
+}
 const chronMap = new Map();
 for (const c of DATA.chronicle) {
   const k = `${c.tick}|${c.type}`;
@@ -2468,12 +2797,30 @@ function drawLegend(tick) {
 const scrubEl = document.getElementById("scrub"), playBtn = document.getElementById("play");
 scrubEl.max = T - 1;
 let curTick = 0, playing = false, tps = 6, lastPaint = -1, lastLegend = -1;
+let lastEra = -1, eraTimer = 0;
+function eraCard(era, tick) {
+  const el = document.getElementById("eracard");
+  const ORD = ["first", "second", "third", "fourth", "fifth", "sixth",
+               "seventh", "eighth", "ninth", "tenth", "eleventh", "twelfth"];
+  el.textContent = `the ${ORD[era] || ((era + 1) + "th")} era · year ${Math.floor(tick / 4)}`;
+  el.classList.add("on");
+  clearTimeout(eraTimer);
+  eraTimer = setTimeout(() => el.classList.remove("on"), 3200);
+}
 function setTick(t, hard) {
   curTick = Math.max(0, Math.min(T - 1, t));
   scrubEl.value = Math.floor(curTick);
   const tick = Math.floor(curTick);
   document.getElementById("year").textContent = "year " + Math.floor(tick / 4);
   document.getElementById("season").textContent = SEASONS[tick % 4];
+  // Eras announce themselves as they turn — only while the film rolls; a
+  // scrub through time must not flash its chapter headings.
+  const era = Math.floor(tick / (DATA.era_ticks || 80));
+  if (era !== lastEra) {
+    const prevEra = lastEra;
+    lastEra = era;
+    if (playing && prevEra >= 0) eraCard(era, tick);
+  }
   if (hard) { seekBeats(tick); beatCool = 0; }
   if (tick !== lastPaint) { paintGround(tick); updateForest(tick); lastPaint = tick; }
   if (Math.floor(tick / 20) !== lastLegend) {
@@ -2507,10 +2854,13 @@ function setArchaeo(on) {
   setTick(curTick, true);
 }
 digBtn.addEventListener("click", () => setArchaeo(!archaeo), sig);
+document.getElementById("wander").addEventListener("click", () => setWander(!wander), sig);
 scrubEl.addEventListener("input", () => { playing = false; playBtn.textContent = "play"; setTick(+scrubEl.value, true); }, sig);
 addEventListener("keydown", e => {
   if (e.key === " ") { e.preventDefault(); playBtn.click(); }
   if (e.key === "a" || e.key === "A") setArchaeo(!archaeo);
+  if (e.key === "w" || e.key === "W") setWander(!wander);
+  if (e.key === "Escape" && wander) setWander(false);
   if (e.key === "[") tps = Math.max(1, tps / 2);
   if (e.key === "]") tps = Math.min(64, tps * 2);
   document.getElementById("speed").textContent = tps + " t/s";
@@ -2555,22 +2905,41 @@ function frame(now) {
   // tick N's hour, so a still is reproducible from the bundle like everything
   // else here, instead of keeping whatever light the last frame left behind.
   {
-    const th = (curTick % 8) / 8 * Math.PI * 2, dayness = 0.5 + 0.5 * Math.sin(th);
+    const season = Math.floor(curTick) % 4;
+    // The year tilts: summer days run long and high, winter's short and low.
+    // The season is the record's own, so the light may follow it — this is
+    // season rendering, not invented weather.
+    const DAYLEN = [1.0, 1.3, 1.0, 0.62], SUNALT = [0.85, 1.05, 0.9, 0.55];
+    const th = (curTick % 8) / 8 * Math.PI * 2;
+    const dayness = Math.max(0, Math.min(1,
+      0.5 + 0.5 * Math.sin(th) * DAYLEN[season]));
+    curDayness = dayness;
     // Direction is all a directional light uses, so the position is pushed well
     // outside the world: at the old radius the shadow camera's near plane cut
     // through the terrain when the sun sat low.
     sun.position.set(Math.cos(th) * G * 0.6,
-                     G * (0.18 + 0.45 * dayness), Math.sin(th) * G * 0.4)
+                     G * (0.18 + 0.45 * dayness * SUNALT[season]),
+                     Math.sin(th) * G * 0.4)
        .normalize().multiplyScalar(G * 1.9);
     sun.intensity = 1.1 + 1.7 * dayness;
+    sun.color.copy(SUN_NIGHT).lerp(SUN_DAY, dayness);
+    if (season === 3) sun.color.lerp(SUN_WINTER, 0.35 * dayness);
     // Night is a painted nocturne, not an unlit scene: the fill drops and goes
     // indigo, so silhouettes stay readable while the warmth leaves the land.
     skyFill.intensity = 0.30 + 0.62 * dayness;
     skyFill.color.copy(SKY_NIGHT).lerp(SKY_DAY, dayness);
     updateSky(dayness);
-    sunDisc.lookAt(camera.position);
-    moonDisc.lookAt(camera.position);
+    // A recorded hard winter flattens and pales whatever the hour set.
+    const sev = winterSeverity(curTick);
+    if (sev > 0.02) {
+      sun.intensity *= 1 - 0.3 * sev;
+      sun.color.lerp(SUN_WINTER, sev * 0.45);
+      skyFill.intensity += 0.18 * sev;
+    }
   }
+  updateHearthlight(now);
+  updateWinter(curTick, now);
+  updateFireflies(now);
   updateSettlements(curTick);
   camStep(dt);
   updatePeople();
@@ -2619,7 +2988,14 @@ window.__dawn = {
                   boats: boatPool.filter(m => m.visible).length,
                   walkers: walkerPool.filter(m => m.visible).length,
                   fires: firePool.filter(g => g.visible).length,
+                  glows: [...groups.values()].reduce((n, g) => n +
+                    [...g.slots.values()].filter(s => s.glow && s.mesh.visible).length, 0),
+                  smoke: smokePuffs.filter(s => s.visible).length,
                   people: peopleGroups.size}),
+  // Storm strength at the current tick (0 outside recorded hard winters),
+  // and whether the walk mode is on — the two new modes, checkable.
+  snow: () => +winterSeverity(curTick).toFixed(3),
+  wandering: () => !!wander,
   attestation: (cid) => attestation(cid, Math.floor(curTick)),
 };
 }   // end boot()
@@ -2661,7 +3037,7 @@ function dataFromBundle(files) {
   const chron = jsonl(files["chronicle.jsonl"]);
   const sums = records.filter(r => r.type === "tick_summary");
   const evTypes = ["ratchet", "hardening", "fusion", "unfusion", "liberation",
-                   "schism", "extinction"];
+                   "schism", "extinction", "hard_winter"];
   const flows = {};
   for (const r of records)
     if (r.type === "defection" && r.to != null) {
