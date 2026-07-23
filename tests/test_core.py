@@ -335,7 +335,51 @@ def test_viewer_sound_is_seeded_ambience_off_until_asked():
     assert "sound: () =>" in tpl, "the mix must be checkable by a driver"
 
 
-def test_viewer_opening_is_ceremony_not_default():
+def test_viewer_time_controls_and_beat_dwell():
+    """The film must be watchable: visible speed controls, a default pace a
+    reader can follow, and dwell under a beat card so the argument on screen
+    can actually be read before the world moves on."""
+    tpl = (Path(__file__).parent.parent / "dawn" / "viewer_template.html").read_text()
+    assert 'id="slower"' in tpl and 'id="faster"' in tpl
+    assert "tps = 3" in tpl, "the default pace is 3 t/s"
+    assert "function setTps(" in tpl and "Math.min(64, Math.max(1" in tpl
+    loop = tpl.split("function frame(now)")[1]
+    assert 'beatEl.classList.contains("on") ? 0.35 : 1' in loop
+    assert "tps * dwell * dt" in loop
+    assert "curTick % 32" in loop, "one day spans 32 ticks — no sun strobe"
+    assert "dwell: () =>" in tpl and "tps: () =>" in tpl
+
+
+def test_viewer_reality_pass_scale_cues():
+    """The anti-diorama pass: the walker never clips a crown, the world holds
+    things an order smaller than its houses and bigger than its frame, and
+    haze starts inside the world so the far shore is softer than the near."""
+    tpl = (Path(__file__).parent.parent / "dawn" / "viewer_template.html").read_text()
+    # Trunks solid, canopies courteous — fade re-derived from the season's own
+    # matrices, never cached across the seasonal swap.
+    fade = tpl.split("function updateTreeFade(")[1].split("// ---- scatter")[0]
+    assert "makeScale(k, k, k)" in fade and "forest.season === 3" in fade
+    step = tpl.split("function camStep(dt) {")[1]
+    assert "treesNear(nx, nz" in step, "the walk slides around boles"
+    # Scatter: instanced, jittered, on land only — and stumps stay refused.
+    sc = tpl.split("// ---- scatter:")[1].split("// ---- LOD bubble")[0]
+    assert "stumps were considered and refused" in sc.lower() or \
+           "Stumps were considered and refused" in sc
+    assert sc.count("lay(") == 2 and "DATA.water[x][y]" in sc
+    assert "instanceColor" in sc
+    # Cloud shadows drape via the terrain shader, safe per the §7 rule.
+    assert "terrainMat.onBeforeCompile" in tpl
+    shad = tpl.split("terrainMat.onBeforeCompile")[1].split("};")[0]
+    assert "uShad" in shad and "smoothstep" in shad
+    assert "Vector4(0, 0, 1, 0)" in tpl, "radius 1: smoothstep never divides by 0"
+    follow = tpl.split("// The cast shadows follow their sprites")[1]
+    assert "dayness" in follow.split("}")[0]
+    # Haze inside the world; the sky exempt.
+    assert "new THREE.Fog(0x191510, G * 0.55, G * 2.4)" in tpl
+    assert "scatter: SCATTER" in tpl
+
+
+
     """The first frame is the hook: a held dawn, one slow forced flight to
     the first hearth, title centred — but deep links and reduced-motion
     skip it, and any touch of the controls ends it early."""

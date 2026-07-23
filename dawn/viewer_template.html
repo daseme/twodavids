@@ -173,6 +173,7 @@ where the full treatment in VIEWER.md §§2–4 is still to come. -->
   #legend .p.unattested { color: #857a66; font-style: italic; }
   #bar button.on { background: var(--accent); color: var(--parchment);
     border-color: var(--accent); }
+  #bar button.mini { padding: 1px 7px; }
   #modenote { position: absolute; left: 50%; transform: translateX(-50%);
     bottom: 66px; max-width: 620px; text-align: center; font-size: 11px;
     line-height: 1.5; color: #e4d5b2; font-style: italic; display: none;
@@ -221,7 +222,9 @@ where the full treatment in VIEWER.md §§2–4 is still to come. -->
   <button id="wander" title="Walk the world at eye height — wasd walk, drag steers, the wheel is pace">wander</button>
   <button id="sound" title="Ambience of what is drawn — wind, water, hearths after dark">sound</button>
   <div id="scrubwrap"><div id="marks"></div><input id="scrub" type="range" min="0" value="0" step="1"></div>
-  <div id="speed">6 t/s</div>
+  <button id="slower" class="mini" title="Half speed ([)">−</button>
+  <div id="speed">3 t/s</div>
+  <button id="faster" class="mini" title="Double speed (])">+</button>
 </div>
 <div id="modenote"></div>
 <div id="eracard"></div>
@@ -413,7 +416,11 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 stage.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x191510);
-scene.fog = new THREE.Fog(0x191510, G * 1.4, G * 3.2);
+// Aerial perspective is the cheapest scale cue there is: haze must start
+// well inside the world, or the far shore renders as crisp as the near one
+// and everything reads the same size — which is to say, miniature. The dome
+// and its furniture are fog-exempt, so only the land fades.
+scene.fog = new THREE.Fog(0x191510, G * 0.55, G * 2.4);
 const camera = new THREE.PerspectiveCamera(46, 1, 0.1, G * 8);
 
 // Warm key, cool fill, and a lower sun: the brief's golden hour, where lit
@@ -615,6 +622,12 @@ const clouds = new THREE.Group();
 }
 const CLOUD_DAY = new THREE.Color(0xfff6e8), CLOUD_NIGHT = new THREE.Color(0x232a44),
       CLOUD_STORM = new THREE.Color(0x646a76), _cloudTint = new THREE.Color();
+// And every cloud casts: six of them darken the ground they cross, each under
+// its sprite, draped over the relief by the terrain shader rather than laid
+// on a plane that would slice the hills. This is the scale cue nothing else
+// provides — something bigger than the frame, moving.
+const cloudShade = {uShad: {value: Array.from({length: 6},
+  () => new THREE.Vector4(0, 0, 1, 0))}};   // radius 1: smoothstep never divides by 0
 function updateClouds(now, dt, dayness, sev) {
   for (const sp of clouds.children) {
     // The prevailing wind stiffens in a storm.
@@ -628,6 +641,14 @@ function updateClouds(now, dt, dayness, sev) {
   cloudMat.color.copy(_cloudTint);
   // Scattered fair-weather cumulus; a closing deck when the record storms.
   cloudMat.opacity = 0.07 + 0.30 * dayness + 0.34 * sev;
+  // The cast shadows follow their sprites, fading with the light that casts
+  // them and broadening when the deck closes.
+  for (let i = 0; i < 6; i++) {
+    const sp = clouds.children[i * 3] || clouds.children[i];
+    if (!sp) break;
+    cloudShade.uShad.value[i].set(sp.position.x, sp.position.z,
+      sp.scale.x * (0.45 + sev * 0.3), (0.20 + sev * 0.12) * dayness);
+  }
 }
 
 // Terrain: height from elevation (mils, rendering-only — it never drives
@@ -849,8 +870,24 @@ const hillshade = new Float32Array(pos.count);
 }
 terrainGeo.setAttribute("color",
   new THREE.BufferAttribute(new Float32Array(pos.count * 3), 3));
-const terrain = new THREE.Mesh(terrainGeo,
-  new THREE.MeshLambertMaterial({vertexColors: true}));
+// The terrain material is patched with the cloud shadows: world-space
+// darkening under six drifting blobs. Safe under the §7 rule the same way
+// the water is — exactly one non-instanced Mesh uses this material.
+const terrainMat = new THREE.MeshLambertMaterial({vertexColors: true});
+terrainMat.onBeforeCompile = sh => {
+  sh.uniforms.uShad = cloudShade.uShad;
+  sh.vertexShader = "varying vec2 vShadXZ;\n" + sh.vertexShader.replace(
+    "#include <begin_vertex>",
+    "#include <begin_vertex>\n  vShadXZ = (modelMatrix * vec4(position, 1.0)).xz;");
+  sh.fragmentShader = "uniform vec4 uShad[6];\nvarying vec2 vShadXZ;\n" +
+    sh.fragmentShader.replace("#include <color_fragment>",
+      `#include <color_fragment>
+       for (int i = 0; i < 6; i++) {
+         float dr = length(vShadXZ - uShad[i].xy);
+         diffuseColor.rgb *= 1.0 - uShad[i].w * (1.0 - smoothstep(uShad[i].z * 0.4, uShad[i].z, dr));
+       }`);
+};
+const terrain = new THREE.Mesh(terrainGeo, terrainMat);
 terrain.receiveShadow = true;
 scene.add(terrain);
 
@@ -2205,7 +2242,7 @@ function plantForest() {
     trunks.frustumCulled = false; leaves.frustumCulled = false;
     trunks.castShadow = leaves.castShadow = true;
     scene.add(trunks, leaves);
-    forest[kind] = {trunks, leaves, cols, full, bare, n: list.length};
+    forest[kind] = {trunks, leaves, cols, full, bare, n: list.length, pts: list};
   }
 }
 // Wind in the crowns: a vertex sway patched into the leaf material, phasing
@@ -2216,6 +2253,64 @@ function plantForest() {
 // and the wind sound together.
 const WIND = {uT: {value: 0}, uG: {value: 0.02}};
 plantForest();
+
+// A walker's relationship with the wood: trunks are solid, and a canopy you
+// are about to wear steps aside. The trees were authored for 800 m away;
+// at 0.55 m the 20-face crowns are paper, so instead of letting the camera
+// clip through them we fade each crown that comes within reach and glide
+// around the trunk that stays. One spatial hash over world positions serves
+// both courtesies.
+const treeHash = new Map();   // "cx,cz" (3-unit cells) -> [{kind, i, wx, wz, s}]
+const TREE_CELL = 3;
+for (const kind of ["broad", "pine"]) {
+  const f = forest[kind];
+  if (!f) continue;
+  f.pts.forEach((t, i) => {
+    const wx = t.x - G / 2, wz = t.y - G / 2;
+    const key = Math.floor(wx / TREE_CELL) + "," + Math.floor(wz / TREE_CELL);
+    if (!treeHash.has(key)) treeHash.set(key, []);
+    treeHash.get(key).push({kind, i, wx, wz, s: t.s});
+  });
+}
+function treesNear(wx, wz, r) {
+  const out = [], span = Math.ceil(r / TREE_CELL);
+  const ix = Math.floor(wx / TREE_CELL), iz = Math.floor(wz / TREE_CELL);
+  for (let dx = -span; dx <= span; dx++) for (let dz = -span; dz <= span; dz++) {
+    const bucket = treeHash.get((ix + dx) + "," + (iz + dz));
+    if (bucket) for (const t of bucket)
+      if (Math.hypot(t.wx - wx, t.wz - wz) < r) out.push(t);
+  }
+  return out;
+}
+// Canopy fade: shrink the crown instances near the walker toward nothing.
+// The seasonal swap rewrites the whole matrix buffer, so the fade must be
+// re-derived each frame from the season's own matrices — never cached.
+const fadedTrees = new Map();   // "kind|i" -> true while shrunk
+const _fm = new THREE.Matrix4(), _fs = new THREE.Matrix4();
+function updateTreeFade() {
+  if (!wander && fadedTrees.size === 0) return;
+  const near = wander ? treesNear(wander.x, wander.z, 2.6) : [];
+  const nearKeys = new Set(near.map(t => t.kind + "|" + t.i));
+  for (const t of near) {
+    const d = Math.hypot(t.wx - wander.x, t.wz - wander.z);
+    const k = Math.max(0.04, Math.min(1, (d - 1.0) / 1.6));
+    if (k >= 1 && !fadedTrees.has(t.kind + "|" + t.i)) continue;
+    const f = forest[t.kind];
+    _fm.fromArray((forest.season === 3 ? f.bare : f.full), t.i * 16);
+    _fm.multiply(_fs.makeScale(k, k, k));   // right-multiply: the trunk stays put
+    f.leaves.setMatrixAt(t.i, _fm);
+    f.leaves.instanceMatrix.needsUpdate = true;
+    fadedTrees.set(t.kind + "|" + t.i, true);
+  }
+  for (const key of fadedTrees.keys()) {
+    if (nearKeys.has(key)) continue;
+    const [kind, i] = key.split("|"), f = forest[kind];
+    f.leaves.instanceMatrix.array.set(
+      (forest.season === 3 ? f.bare : f.full).slice(+i * 16, +i * 16 + 16), +i * 16);
+    f.leaves.instanceMatrix.needsUpdate = true;
+    fadedTrees.delete(key);
+  }
+}
 
 function updateForest(tick) {
   const season = tick % 4;
@@ -2229,6 +2324,58 @@ function updateForest(tick) {
     f.leaves.instanceMatrix.array.set(season === 3 ? f.bare : f.full);
     f.leaves.instanceMatrix.needsUpdate = true;
   }
+}
+
+// ---- scatter: the small things that make the tents big ----------------------
+// A diorama is a world where everything is the same size. These are an order
+// under the structures — stones on the slopes and shores, scrub tufts in the
+// green biomes — so the eye gets a small reference and a lodge reads as a
+// building. Seeded placement on the record's own land, sitting on the fine
+// surface like everything else. Stumps were considered and refused: a felled
+// tree asserts logging, and the record does not.
+const SCATTER = {stones: 0, scrub: 0};
+{
+  const stones = [], scrub = [];
+  const cl = v => Math.max(0, Math.min(G - 1, v));
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
+    if (DATA.water[x][y] || heightAt(x, y) < 0.05) continue;
+    const slope = Math.hypot(heightAt(cl(x + 1), y) - heightAt(cl(x - 1), y),
+                             heightAt(x, cl(y + 1)) - heightAt(x, cl(y - 1)));
+    const h1 = hash2(x, y, NSEED + 910), h2 = hash2(x, y, NSEED + 920),
+          h3 = hash2(x, y, NSEED + 930), h4 = hash2(x, y, NSEED + 940);
+    // Stones favour slope, the places the soil lets go of them.
+    if (h1 < 0.16 + Math.min(0.55, slope * 2.2))
+      stones.push({x: x + (h2 - 0.5) * 0.9, y: y + (h3 - 0.5) * 0.9,
+                   s: 0.5 + h4 * 1.1, rot: h2 * 6.283});
+    const [veg] = VEG_BY_INDEX[DATA.biome[x][y]] || VEG_BY_INDEX[0];
+    if (h2 < 0.22 + Math.min(0.5, veg * 0.8))
+      scrub.push({x: x + (h3 - 0.5) * 0.95, y: y + (h1 - 0.5) * 0.95,
+                  s: 0.6 + h4 * 0.9, rot: h3 * 6.283});
+  }
+  const v = new THREE.Vector3(), q = new THREE.Quaternion(), sc = new THREE.Vector3(),
+        e = new THREE.Euler(), m4 = new THREE.Matrix4();
+  const lay = (geo, list, squash, tint) => {
+    const mat = new THREE.MeshLambertMaterial({color: 0xffffff});
+    const mesh = new THREE.InstancedMesh(geo, mat, list.length);
+    const col = new Float32Array(list.length * 3);
+    list.forEach((t, i) => {
+      toWorld(t.x, t.y, v); v.y -= 0.008;
+      e.set(0, t.rot, 0); q.setFromEuler(e);
+      sc.set(t.s, t.s * squash, t.s);
+      m4.compose(v, q, sc); mesh.setMatrixAt(i, m4);
+      const j = 0.82 + hash2((t.x * 64) | 0, (t.y * 64) | 0, NSEED + 950) * 0.36;
+      col[i * 3] = Math.min(1, tint[0] * j);
+      col[i * 3 + 1] = Math.min(1, tint[1] * j);
+      col[i * 3 + 2] = Math.min(1, tint[2] * j);
+    });
+    mesh.instanceColor = new THREE.InstancedBufferAttribute(col, 3);
+    mesh.receiveShadow = true; mesh.frustumCulled = false;
+    scene.add(mesh);
+    return mesh;
+  };
+  lay(ico(0.06, 0), stones, 0.55, [0.55, 0.52, 0.47]);
+  lay(cone(0.05, 0.11, 4).translate(0, 0.055, 0), scrub, 0.8, [0.42, 0.46, 0.27]);
+  SCATTER.stones = stones.length; SCATTER.scrub = scrub.length;
 }
 
 // ---- LOD bubble band (§2): people are statistics until the camera is close --
@@ -2561,7 +2708,7 @@ function updateMargins(tick) {
 // ---- camera: spring-damper rig with curved altitude path (§2) ---------------
 const cam = {
   focus: new THREE.Vector3(0, 0, 0), fTarget: new THREE.Vector3(0, 0, 0),
-  yaw: 0.8, pitch: 0.9, dist: G * 1.15, dTarget: G * 1.15, vel: new THREE.Vector3(),
+  yaw: 0.8, pitch: 0.6, dist: G * 0.85, dTarget: G * 0.85, vel: new THREE.Vector3(),
   pTarget: null,   // director-set pitch; released to the viewer on drag
 };
 // ---- wander mode: be in the world, not above it ------------------------------
@@ -2615,6 +2762,14 @@ function camStep(dt) {
       nx = Math.max(-lim, Math.min(lim, nx));
       nz = Math.max(-lim, Math.min(lim, nz));
     }
+    // Trunks are solid: slide around the bole rather than through it.
+    for (const t of treesNear(nx, nz, 0.6)) {
+      const rr = 0.10 + t.s * 0.05, d = Math.hypot(nx - t.wx, nz - t.wz);
+      if (d < rr && d > 1e-4) {
+        nx = t.wx + (nx - t.wx) / d * rr;
+        nz = t.wz + (nz - t.wz) / d * rr;
+      }
+    }
     w.x = nx; w.z = nz;
     const gy = Math.max(0.02, heightField(w.x + G / 2, w.z + G / 2)) + 0.55;
     w.y += (gy - w.y) * Math.min(1, dt * 4);
@@ -2667,6 +2822,8 @@ function camStep(dt) {
 // Shot grammar (§4): each beat kind gets its own framing. The ratchet is an
 // overhead — the assembly that fails to disperse reads in plan view; the
 // liberation is low and close; the schism is wide enough to hold both camps.
+// The pitches are biased low throughout: a world filmed across reads as a
+// place, a world filmed from above reads as a model of one.
 // ---- flights: interpolated paths between beats ------------------------------
 // The spring rig is good at holding a shot and poor at going to one: its
 // speed is whatever the remaining distance says, and pitch and distance
@@ -2681,12 +2838,12 @@ function camStep(dt) {
 // cancelling hands over with no lurch.
 let flight = null;   // {u, dur, f0, d0, q0, d1, q1, len}
 function cancelFlight() { flight = null; }
-const SHOTS = {fusion: {d: 0.20, p: 0.62}, ratchet: {d: 0.30, p: 1.28},
-               unfusion: {d: 0.22, p: 0.7}, liberation: {d: 0.17, p: 0.5},
-               schism: {d: 0.55, p: 0.95}, extinction: {d: 0.45, p: 1.1},
-               encounter: {d: 0.22, p: 0.68}, succession: {d: 0.24, p: 0.78}};
+const SHOTS = {fusion: {d: 0.20, p: 0.45}, ratchet: {d: 0.30, p: 1.28},
+               unfusion: {d: 0.22, p: 0.5}, liberation: {d: 0.17, p: 0.4},
+               schism: {d: 0.55, p: 0.68}, extinction: {d: 0.45, p: 0.8},
+               encounter: {d: 0.22, p: 0.48}, succession: {d: 0.24, p: 0.55}};
 function frameShot(kind, hold) {
-  const s = SHOTS[kind] || {d: 0.28, p: 0.9};
+  const s = SHOTS[kind] || {d: 0.26, p: 0.62};
   cam.dTarget = G * s.d;
   cam.pTarget = s.p;
   const len = cam.fTarget.distanceTo(cam.focus);
@@ -2944,8 +3101,8 @@ function directorStep(tick, now) {
   // Idle: with nothing to film for a while, pull back to the establishing
   // wide and drift — the land itself is the between-beats shot.
   if (playing && now - beatShownAt > 16000 && !dragging) {
-    cam.dTarget = Math.max(cam.dTarget, G * 0.85);
-    cam.pTarget = 0.95;
+    cam.dTarget = Math.max(cam.dTarget, G * 0.7);
+    cam.pTarget = 0.68;
     cam.yaw += 0.0006;
   }
 }
@@ -3101,7 +3258,7 @@ function drawLegend(tick) {
 // ---- time: play, scrub, seasons ---------------------------------------------
 const scrubEl = document.getElementById("scrub"), playBtn = document.getElementById("play");
 scrubEl.max = T - 1;
-let curTick = 0, playing = false, tps = 6, lastPaint = -1, lastLegend = -1;
+let curTick = 0, playing = false, tps = 3, lastPaint = -1, lastLegend = -1;
 let lastEra = -1, eraTimer = 0;
 function eraCard(era, tick) {
   const el = document.getElementById("eracard");
@@ -3162,6 +3319,12 @@ digBtn.addEventListener("click", () => setArchaeo(!archaeo), sig);
 document.getElementById("wander").addEventListener("click", () => setWander(!wander), sig);
 document.getElementById("sound").addEventListener("click", () => setSound(!audioOn), sig);
 scrubEl.addEventListener("input", () => { playing = false; playBtn.textContent = "play"; setTick(+scrubEl.value, true); }, sig);
+function setTps(v) {
+  tps = Math.min(64, Math.max(1, v));
+  document.getElementById("speed").textContent = tps + " t/s";
+}
+document.getElementById("slower").addEventListener("click", () => setTps(tps / 2), sig);
+document.getElementById("faster").addEventListener("click", () => setTps(tps * 2), sig);
 addEventListener("keydown", e => {
   if (wander && /^Key[WASD]$/.test(e.code)) { walkKeys.add(e.code); return; }
   if (e.key === " ") { e.preventDefault(); playBtn.click(); }
@@ -3169,9 +3332,8 @@ addEventListener("keydown", e => {
   if (e.key === "w" || e.key === "W") setWander(!wander);
   if (e.key === "s" || e.key === "S") setSound(!audioOn);
   if (e.key === "Escape" && wander) setWander(false);
-  if (e.key === "[") tps = Math.max(1, tps / 2);
-  if (e.key === "]") tps = Math.min(64, tps * 2);
-  document.getElementById("speed").textContent = tps + " t/s";
+  if (e.key === "[") setTps(tps / 2);
+  if (e.key === "]") setTps(tps * 2);
 }, sig);
 addEventListener("keyup", e => walkKeys.delete(e.code), sig);
 
@@ -3192,6 +3354,7 @@ function resize() {
 addEventListener("resize", resize, sig); resize();
 
 let prev = performance.now();
+let dwell = 1;   // the film's breathing: 1 at speed, 0.35 under a beat card
 // #t=1234&play seeks (and optionally starts) — a shareable moment.
 const hash = new URLSearchParams(location.hash.slice(1));
 setTick(+(hash.get("t") || 0), true);
@@ -3228,7 +3391,11 @@ function frame(now) {
   if (ctl.signal.aborted) { renderer.dispose(); return; }
   const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
   if (playing) {
-    setTick(curTick + tps * dt, false);
+    // Beat dwell: while a card is up the film breathes — time eases to a
+    // third so the argument on screen can actually be read, then resumes.
+    const dwellTo = beatEl.classList.contains("on") ? 0.35 : 1;
+    dwell += (dwellTo - dwell) * Math.min(1, dt * 1.6);
+    setTick(curTick + tps * dwell * dt, false);
     if (curTick >= T - 1) { playing = false; playBtn.textContent = "play"; }
   }
   if (!opening) directorStep(Math.floor(curTick), now);   // ceremony first
@@ -3246,7 +3413,10 @@ function frame(now) {
     // The season is the record's own, so the light may follow it — this is
     // season rendering, not invented weather.
     const DAYLEN = [1.0, 1.3, 1.0, 0.62], SUNALT = [0.85, 1.05, 0.9, 0.55];
-    const th = (curTick % 8) / 8 * Math.PI * 2;
+    // One day spans 32 ticks: at 3 t/s a golden hour lingers long enough to
+    // read as light rather than as a strobe. Still tick-derived, so a
+    // paused frame's hour is reproducible from the bundle.
+    const th = (curTick % 32) / 32 * Math.PI * 2;
     const dayness = Math.max(0, Math.min(1,
       0.5 + 0.5 * Math.sin(th) * DAYLEN[season]));
     curDayness = dayness;
@@ -3283,6 +3453,7 @@ function frame(now) {
   updateFireflies(now);
   updateSettlements(curTick);
   camStep(dt);
+  updateTreeFade();
   soundStep(now);
   updatePeople();
   renderer.render(scene, camera);
@@ -3332,6 +3503,8 @@ window.__dawn = {
                   walkers: walkerPool.filter(m => m.visible).length,
                   fires: firePool.filter(g => g.visible).length,
                   clouds: clouds.children.length,
+                  scatter: SCATTER.stones + SCATTER.scrub,
+                  faded: fadedTrees.size,
                   birds: flocks.reduce((n, f) => n + (f.pts.visible ? 1 : 0), 0),
                   glows: [...groups.values()].reduce((n, g) => n +
                     [...g.slots.values()].filter(s => s.glow && s.mesh.visible).length, 0),
@@ -3341,6 +3514,9 @@ window.__dawn = {
   // and whether the walk mode is on — the two new modes, checkable.
   snow: () => +winterSeverity(curTick).toFixed(3),
   wandering: () => !!wander,
+  // The film's breathing: 1 at speed, easing toward 0.35 under a beat card.
+  dwell: () => +dwell.toFixed(3),
+  tps: () => tps,
   // A directed move in progress (or null), and the mix as currently heard —
   // so a flight that never lands and a layer that never opens are both
   // checkable without an eye or an ear.

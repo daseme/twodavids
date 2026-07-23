@@ -190,6 +190,67 @@ gust uniform driven by the same severity — §7's instancing hazard respected,
 instanceColor set as it always was. Still to come from the list: beat cards
 as illuminated marginalia, and the water's wet band and glitter path.*
 
+**The reality list (2026-07-23).** The verdict from a fresh eye: it reads as
+a middle-school diorama, not a finished world. The diagnosis, before any
+prescription: (1) the camera looks *down* at a model — pitch 0.9 at 1.15
+world-widths is god-view of a model railway, and real places are filmed
+across, low; (2) no scale cues — trees, houses and mountains are all the
+same order of size, where real landscapes hold things much smaller than a
+house (stones, scrub) and much bigger than the frame (cloud shadows, haze);
+(3) cell-scale flat colour — territory and biome tints are poster-sized
+regions of uniform paint, and at wander range the ground is smooth plastic;
+(4) the sun strobes — a full day every 8 ticks is one circuit every 1.3 s
+at 6 t/s; (5) the trees are 20-face icosahedra on sticks, authored for 800
+m and exposed at 0.55 m, where wander's eye height sits inside canopy
+height and clips through paper polygons. The plan, phases in order:
+1. **Stop lying.** Wander glides around trunks and fades near canopies so a
+   clipped face is never seen; visible speed buttons (default 3 t/s) and
+   beat dwell — time eases to a third while a card is up; one day = 32
+   ticks so golden hours linger.
+2. **Scale cues.** Instanced scatter an order smaller than the tents
+   (stones, scrub — stumps refused: felling is not in the record); cloud
+   shadows riding the cloud wind, each under its cloud; stronger aerial
+   perspective; reframed defaults — across the world, not down at it.
+3. **Close-range surfaces.** Ground grain at fragment level faded in near
+   the camera (the fifth ANNALS technique, previously refused, now
+   justified by measured wander flatness); tree rebuild (more blobs,
+   detail-1 icosahedra, per-instance squash, trunks sunk); water's wet
+   band, glitter path, animated foam.
+4. **Light polish.** Contact shadows under structures, softer shadow
+   radius.
+The constraint holds throughout: procedural, single-file, deterministic —
+the manuscript palette stays, but it must chase real scale, real light,
+real atmosphere, all of it instrumented in `__dawn` because we verify by
+driver, not by eye.
+
+**The reality pass, phases 1–2 (2026-07-23).** Phase 1 stopped the lies.
+The walk no longer wears the wood: one spatial hash over tree positions
+serves trunk collision (the camera slides around the bole) and canopy
+courtesy (a crown within reach shrinks away, re-derived each frame from the
+season's own matrices so the winter swap never pops it back) — the answer
+to geometry authored for 800 m being met at 0.55 m is not better geometry
+but never having to look at it that closely. Time became watchable:
+visible −/+ controls beside the readout, the default pace 3 t/s, and beat
+dwell — while a card is up, time eases to a third and resumes after, so the
+argument on screen can be read before the world moves on (`dwell` is in
+`__dawn`). One day now spans 32 ticks; a golden hour lingers long enough
+to read as light rather than strobe. Phase 2 laid in the scale cues.
+Scatter: instanced stones favouring slope and scrub favouring green, an
+order under the structures, seeded, on the record's own land — stumps
+refused, because a felled tree asserts logging and the record does not.
+Cloud shadows: six of the sprites now darken the ground they cross, draped
+over the relief by a patch to the terrain shader (world-space darkening
+under six uniforms — the material serves exactly one non-instanced mesh,
+the §7 rule kept), each shadow under its cloud, fading with the light that
+casts it and broadening when the deck closes: something bigger than the
+frame, moving. Aerial perspective: haze now starts at 0.55 world-widths
+instead of 1.4 — the far shore is softer than the near one, the dome and
+its furniture exempt. And the grammar reframed across rather than down:
+default pitch 0.6 at 0.85 widths, every shot's pitch lowered except the
+ratchet's plan view, which is the point of it. Still to come from the
+list: phase 3 (close-range ground grain, tree rebuild, water's wet band
+and glitter) and phase 4 (contact shadows).
+
 ## 0. The architecture in one sentence
 
 Because the sim is deterministic and journal-replayable, the viewer is a
