@@ -81,8 +81,7 @@ frequency, with a meander inside the cell under the §0 elaboration rule — the
 same move the shore already makes. On seed 3 the network is genuinely marginal
 (24 unit segments; 12 of 34 nodes on the map edge, 9 already under water), so
 this reads at valley scale and vanishes at map scale, which is the record's
-fact and not the renderer's failure. Still to come: interpolated camera paths
-between beats, sound.*
+fact and not the renderer's failure. Still to come: sound.*
 
 **The second visual pass (2026-07-22)** gave the world its hours and its
 weather. Night is no longer a dimmer day: every earned hearth, lodge and keep
@@ -112,7 +111,40 @@ a scrub must not flash its chapter headings. All of it is ambience of the
 trees' standing: deterministic from bundle + seed, evidence-free, and the
 new systems are instrumented in `window.__dawn` (glows, smoke, snow severity,
 wander state) so the page can still be checked by a driver rather than by
-eye. Still to come: interpolated camera paths between beats, sound.*
+eye. Still to come: sound.*
+
+**The third visual pass (2026-07-23)** let the camera travel and gave the
+world its hearing. Directed moves are no longer sprung but **flown**: the
+old rig's speed was whatever the remaining distance said, and pitch and
+distance arrived on their own clocks, so a shot composed piecemeal. A beat
+now plans one path — focus, distance and pitch eased on a single clock over
+a duration the path length sets (0.9 s at the shortest hop, 3.3 s at the
+cut threshold), the altitude arc a function of progress rather than of
+distance still to go. Long moves still cut, by the ANNALS rig's rule against
+airline tours; a beat landing where the camera already stands does nothing;
+and any drag, wheel or walk cancels the flight mid-air, because the
+viewer's hand outranks the director's plan (§5). The flight writes the
+spring's own state as it goes, so completion and interruption hand over at
+the same place with no lurch. **Sound** arrives under the same discipline
+as everything else here: ambience of the world's standing, never a score.
+Three layers, all of them something already drawn, heard — wind that
+strengthens with altitude and with recorded storms (severity opens the
+filter, so a hard winter is audible before it is seen), water that swells
+slowly where the view nears a shore and is silent inland, hearth-crackle
+near a living camp after dark — and nothing else, no melody, no sting on a
+beat, because the film quotes its sources and the mix has none. The noise
+bed is mulberry32(NSEED), so the same bundle roars the same way; the
+crackle pops are hash2 over 90 ms quanta, the fireflies' trick in another
+medium; and the mix is measured on the world, throttled to 300 ms — nearest
+water cell under the view, nearest lit hearth to the camera — so unattested
+mounds, which carry no glow, make no sound either. Off until asked (`s` or
+the button): a record should open silent, and the browser would refuse a
+gestureless start anyway. The walk takes the keys now, too: WASD drives and
+turns while wandering, the letters' other duties (dig, sound, the wander
+toggle itself) yielding for the walk's duration — pressing W to go forward
+must not leave the world. The flight and the mix are instrumented in
+`window.__dawn` (`flying`, `sound`), so both can be checked by a driver
+rather than by eye or ear. Nothing remains on the old list.*
 
 ## 0. The architecture in one sentence
 

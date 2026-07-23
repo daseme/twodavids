@@ -201,14 +201,16 @@ where the full treatment in VIEWER.md §§2–4 is still to come. -->
 <div class="panel" id="bar">
   <button id="play">play</button>
   <button id="dig" title="Render only what the surviving record supports">dig</button>
-  <button id="wander" title="Walk the world at eye height — drag steers, the wheel is pace">wander</button>
+  <button id="wander" title="Walk the world at eye height — wasd walk, drag steers, the wheel is pace">wander</button>
+  <button id="sound" title="Ambience of what is drawn — wind, water, hearths after dark">sound</button>
   <div id="scrubwrap"><div id="marks"></div><input id="scrub" type="range" min="0" value="0" step="1"></div>
   <div id="speed">6 t/s</div>
 </div>
 <div id="modenote"></div>
 <div id="eracard"></div>
 <div id="help">drag orbit · wheel zoom · click a name to visit · space
-  play/pause · a dig mode · w walk the world (drag steers, wheel is pace) ·
+  play/pause · a dig mode · w walk the world (wasd walk, drag steers, wheel
+  is pace) · s sound ·
   click a people for its dossier — the viewer watches; the only causal verb is argue</div>
 
 <script id="bundle" type="application/json">__DATA__</script>
@@ -1379,7 +1381,12 @@ const MAT = {
   unknown: new THREE.MeshLambertMaterial({color: 0x6b6459, vertexColors: true}),
 };
 const groups = new Map();   // cid -> {group, key}
-const groundY = (x, y) => heightAt(Math.round(x), Math.round(y));
+// Everything placed on the world stands on the surface actually drawn — the
+// fine, interpolated one. Rounding to the cell node first left anything at a
+// fractional position (a tree, a summer camp, a walking family) standing on
+// its cell's height instead of the ground under its feet: the floating
+// trees were this, one rounding deep.
+const groundY = (x, y) => heightAt(x, y);
 const toWorld = (x, y, out) => out.set(x - G / 2, Math.max(0, groundY(x, y)), y - G / 2);
 // salience gate: an axis renders when held strongly OR performed loudly.
 const perf = (mean, sal, i, thr) =>
@@ -2408,10 +2415,15 @@ const cam = {
 // The camera is the viewer's only presence here, and walking it touches
 // nothing (§5). A slow glide at eye height over the surface actually drawn —
 // the detail mesh, the rivers, the shores all repay the close reading they
-// were built for. `w` toggles; drag steers; the wheel is pace.
+// were built for. `w` toggles; drag steers; the wheel is pace; WASD walks,
+// the letters yielding their other duties (dig, sound, wander) for as long
+// as the walk lasts. Escape leaves.
 let wander = null;   // {x, z, heading, pitch, speed, y}
+const walkKeys = new Set();
 function setWander(on) {
   document.getElementById("wander").classList.toggle("on", !!on);
+  cancelFlight();
+  walkKeys.clear();
   if (on) {
     const dir = v3.copy(cam.fTarget).sub(camera.position);
     wander = {x: camera.position.x, z: camera.position.z,
@@ -2433,10 +2445,17 @@ function camStep(dt) {
   if (wander) {
     const w = wander;
     // A quiet meander under the viewer's steering, so an untouched walk
-    // still goes somewhere.
-    w.heading += (fbm(w.x * 0.13 + 31.7, w.z * 0.13 + 7.1, NSEED + 6100) - 0.5) * dt * 0.6;
-    let nx = w.x + Math.cos(w.heading) * w.speed * dt;
-    let nz = w.z + Math.sin(w.heading) * w.speed * dt;
+    // still goes somewhere. Keys take over: A/D turn, W/S drive and rein.
+    if (walkKeys.size) {
+      if (walkKeys.has("KeyA")) w.heading += dt * 2.2;
+      if (walkKeys.has("KeyD")) w.heading -= dt * 2.2;
+    } else {
+      w.heading += (fbm(w.x * 0.13 + 31.7, w.z * 0.13 + 7.1, NSEED + 6100) - 0.5) * dt * 0.6;
+    }
+    const drive = walkKeys.has("KeyW") ? 1 : walkKeys.has("KeyS") ? -0.6
+                : walkKeys.size ? 0 : 1;
+    let nx = w.x + Math.cos(w.heading) * w.speed * drive * dt;
+    let nz = w.z + Math.sin(w.heading) * w.speed * drive * dt;
     const lim = G / 2 - 1;
     if (Math.abs(nx) > lim || Math.abs(nz) > lim) {   // the world's edge turns you
       w.heading += Math.PI * 0.5;
@@ -2452,8 +2471,30 @@ function camStep(dt) {
     camera.lookAt(lx, ly, lz);
     return;
   }
+  if (flight) {
+    // One planned path: focus, distance and pitch ease on the same clock,
+    // the altitude arc is a function of progress rather than of distance
+    // still to go, and the spring's state is written throughout so the
+    // handover — on completion or on interruption — is where we already are.
+    flight.u = Math.min(1, flight.u + dt / flight.dur);
+    const e = flight.u * flight.u * (3 - 2 * flight.u);
+    cam.focus.lerpVectors(flight.f0, cam.fTarget, e);
+    cam.dist = flight.d0 + (flight.d1 - flight.d0) * e;
+    cam.pitch = flight.q0 + (flight.q1 - flight.q0) * e;
+    cam.vel.set(0, 0, 0);
+    const arc = Math.min(1, flight.len / (G * 0.5));
+    const alt = cam.dist * (1 + 0.7 * arc * Math.sin(Math.PI * e));
+    camera.position.set(
+      cam.focus.x + Math.cos(cam.yaw) * Math.cos(cam.pitch) * alt,
+      cam.focus.y + Math.sin(cam.pitch) * alt,
+      cam.focus.z + Math.sin(cam.yaw) * Math.cos(cam.pitch) * alt);
+    camera.lookAt(cam.focus);
+    if (flight.u >= 1) flight = null;
+    return;
+  }
   // Critically-damped-ish spring toward the focus target; the altitude bump
-  // during long flights gives the curved path of the ANNALS rig.
+  // on long moves gives the curved path of the ANNALS rig. This branch holds
+  // the viewer's own moves; directed shots fly the planned path above.
   const k = 3.2, d = 2 * Math.sqrt(k);
   v3.copy(cam.fTarget).sub(cam.focus).multiplyScalar(k)
     .addScaledVector(cam.vel, -d);
@@ -2462,8 +2503,8 @@ function camStep(dt) {
   cam.dist += (cam.dTarget - cam.dist) * Math.min(1, dt * 3);
   if (cam.pTarget !== null)
     cam.pitch += (cam.pTarget - cam.pitch) * Math.min(1, dt * 2.5);
-  const flight = Math.min(1, cam.fTarget.distanceTo(cam.focus) / (G * 0.4));
-  const alt = cam.dist * (1 + 0.8 * Math.sin(Math.PI * flight));
+  const rem = Math.min(1, cam.fTarget.distanceTo(cam.focus) / (G * 0.4));
+  const alt = cam.dist * (1 + 0.8 * Math.sin(Math.PI * rem));
   camera.position.set(
     cam.focus.x + Math.cos(cam.yaw) * Math.cos(cam.pitch) * alt,
     cam.focus.y + Math.sin(cam.pitch) * alt,
@@ -2473,8 +2514,20 @@ function camStep(dt) {
 // Shot grammar (§4): each beat kind gets its own framing. The ratchet is an
 // overhead — the assembly that fails to disperse reads in plan view; the
 // liberation is low and close; the schism is wide enough to hold both camps.
-// Long moves cut instead of flying (the ANNALS rig's rule against airline
-// tours); pitch is directed only until the viewer next drags.
+// ---- flights: interpolated paths between beats ------------------------------
+// The spring rig is good at holding a shot and poor at going to one: its
+// speed is whatever the remaining distance says, and pitch and distance
+// arrive on their own clocks, so a directed framing used to compose
+// piecemeal. A directed move is flown instead as one planned path — focus,
+// distance and pitch eased together over a duration the path length sets,
+// with the altitude arc planned in rather than falling out of the spring.
+// Long moves still cut (the ANNALS rig's rule against airline tours), and
+// any touch of the controls cancels the flight mid-air: the viewer's drag
+// outranks the director's plan (§5), and pitch is directed only until then.
+// The flight writes the spring's own state as it goes, so landing or
+// cancelling hands over with no lurch.
+let flight = null;   // {u, dur, f0, d0, q0, d1, q1, len}
+function cancelFlight() { flight = null; }
 const SHOTS = {fusion: {d: 0.20, p: 0.62}, ratchet: {d: 0.30, p: 1.28},
                unfusion: {d: 0.22, p: 0.7}, liberation: {d: 0.17, p: 0.5},
                schism: {d: 0.55, p: 0.95}, extinction: {d: 0.45, p: 1.1},
@@ -2483,10 +2536,18 @@ function frameShot(kind) {
   const s = SHOTS[kind] || {d: 0.28, p: 0.9};
   cam.dTarget = G * s.d;
   cam.pTarget = s.p;
-  if (cam.fTarget.distanceTo(cam.focus) > G * 0.9) {   // cut, don't tour
+  const len = cam.fTarget.distanceTo(cam.focus);
+  if (len > G * 0.9) {   // cut, don't tour
+    cancelFlight();
     cam.focus.copy(cam.fTarget).add(v3.set(G * 0.06, 0, G * 0.06));
     cam.vel.set(0, 0, 0);
+    cam.dist = cam.dTarget; cam.pitch = cam.pTarget;
+    return;
   }
+  if (len < G * 0.02) return;   // already on it; let the spring hold
+  flight = {u: 0, dur: 0.9 + 2.4 * (len / (G * 0.9)),
+            f0: cam.focus.clone(), d0: cam.dist, q0: cam.pitch,
+            d1: cam.dTarget, q1: cam.pTarget, len};
 }
 function flyTo(cid, tick, kind) {
   const s = sitesOf(cid, tick);
@@ -2496,7 +2557,7 @@ function flyTo(cid, tick, kind) {
 }
 
 let dragging = false, px = 0, py = 0;
-stage.addEventListener("pointerdown", e => { dragging = true; px = e.clientX; py = e.clientY; }, sig);
+stage.addEventListener("pointerdown", e => { cancelFlight(); dragging = true; px = e.clientX; py = e.clientY; }, sig);
 addEventListener("pointerup", () => dragging = false, sig);
 addEventListener("pointermove", e => {
   if (!dragging) return;
@@ -2512,12 +2573,103 @@ addEventListener("pointermove", e => {
   px = e.clientX; py = e.clientY;
 }, sig);
 stage.addEventListener("wheel", e => {
+  cancelFlight();
   if (wander) {
     wander.speed = Math.min(6, Math.max(0.3, wander.speed * (1 - e.deltaY * 0.001)));
     return;
   }
   cam.dTarget = Math.min(G * 2.2, Math.max(G * 0.12, cam.dTarget * (1 + e.deltaY * 0.001)));
 }, {passive: true, signal: ctl.signal});
+
+// ---- sound: ambience of the world's standing, never a score -----------------
+// Every layer is something already drawn, heard: wind that strengthens with
+// altitude and with recorded storms, water where the view nears a shore,
+// hearth-crackle near a living camp after dark — and nothing else. No
+// melody, no sting on a beat: the film quotes its sources and the mix has
+// none. The noise bed is mulberry32(NSEED), so the same bundle roars the
+// same way, and the crackle is hash2 over time quanta — the fireflies'
+// trick in another medium. Off until asked (`s`): a record should open
+// silent, and the browser would refuse a gestureless start anyway.
+let audioOn = false, audio = null;
+function setSound(on) {
+  document.getElementById("sound").classList.toggle("on", on);
+  if (on && !audio) {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    // Two seconds of pinkish noise from the seed: white through a leaky
+    // integrator, the cheapest spectrum that does not hiss.
+    const len = ctx.sampleRate * 2, buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const rnd = mulberry32(NSEED ^ 0x9e3779b9), ch = buf.getChannelData(0);
+    let acc = 0;
+    for (let i = 0; i < len; i++) { acc = acc * 0.97 + (rnd() * 2 - 1) * 0.03; ch[i] = acc * 7; }
+    const master = ctx.createGain();
+    master.gain.value = 0; master.connect(ctx.destination);
+    const layer = (type, freq, q) => {
+      const src = ctx.createBufferSource();
+      src.buffer = buf; src.loop = true;
+      src.playbackRate.value = 0.85 + rnd() * 0.3;   // the layers never beat in phase
+      const f = ctx.createBiquadFilter();
+      f.type = type; f.frequency.value = freq; f.Q.value = q;
+      const g = ctx.createGain(); g.gain.value = 0;
+      src.connect(f); f.connect(g); g.connect(master); src.start();
+      return {f, g};
+    };
+    audio = {ctx, master,
+             wind: layer("lowpass", 380, 0.5),
+             water: layer("bandpass", 750, 0.9),
+             fire: layer("highpass", 2600, 0.4)};
+  }
+  if (audio) {
+    if (on && audio.ctx.state === "suspended") audio.ctx.resume();
+    audio.master.gain.setTargetAtTime(on ? 0.55 : 0, audio.ctx.currentTime, 0.5);
+  }
+  audioOn = on;
+}
+// Proximity is the mix, so it is measured on the world, throttled: nearest
+// water cell to the point under the view, nearest lit hearth to the camera.
+let nearWater = 0, nearHearth = 0, nearAt = -1;
+function measureNear(now) {
+  if (now - nearAt < 300) return;
+  nearAt = now;
+  const px = wander ? wander.x : cam.focus.x, pz = wander ? wander.z : cam.focus.z;
+  const cx = Math.round(px + G / 2), cy = Math.round(pz + G / 2);
+  let best = 8;
+  for (let dx = -7; dx <= 7; dx++) for (let dy = -7; dy <= 7; dy++) {
+    const x = cx + dx, y = cy + dy;
+    if (x < 0 || y < 0 || x >= G || y >= G) continue;
+    if (DATA.water && DATA.water[x] && DATA.water[x][y])
+      best = Math.min(best, Math.max(Math.abs(dx), Math.abs(dy)));
+  }
+  nearWater = best > 7 ? 0 : 1 - best / 8;
+  let hd = Infinity;
+  for (const [, g] of groups) for (const [, s] of g.slots)
+    if (s.glow && s.mesh.visible) {
+      const d = camera.position.distanceTo(s.mesh.position);
+      if (d < hd) hd = d;
+    }
+  nearHearth = hd === Infinity ? 0 : Math.max(0, 1 - hd / (G * 0.09));
+}
+function soundStep(now) {
+  if (!audio || !audioOn) return;
+  measureNear(now);
+  const t = audio.ctx.currentTime;
+  const sev = winterSeverity(curTick);
+  // Wind is altitude and storm: high flight hears more of it, and a recorded
+  // hard winter opens the filter up. Walking hears less of it than flying.
+  const alt = wander ? 0.25 : Math.min(1, cam.dist / (G * 1.1));
+  audio.wind.g.gain.setTargetAtTime(0.05 + 0.10 * alt + 0.28 * sev, t, 0.6);
+  audio.wind.f.frequency.setTargetAtTime(380 + 900 * sev, t, 0.8);
+  // Water swells slowly where a shore is near; none inland, none at altitude
+  // unless the shore is all there is.
+  const swell = 0.75 + 0.25 * Math.sin(now * 0.0009);
+  audio.water.g.gain.setTargetAtTime(nearWater * 0.09 * swell * (0.4 + 0.6 * alt), t, 0.5);
+  // Hearth-crackle after dark, set per frame: the pops are 90ms quanta of a
+  // hash, so the pattern is fixed for a given wall-clock moment and owes
+  // nothing to a dice roll.
+  const night = 1 - curDayness;
+  const c = hash2(Math.floor(now / 90), 7, NSEED + 7700);
+  const pop = c > 0.68 ? (c - 0.68) * 3.4 : 0;
+  audio.fire.g.gain.value = nearHearth * night * (0.012 + pop * 0.12);
+}
 
 // ---- the director: this camera flies to arguments (§4) ----------------------
 // Beats from events + verbatim deliberations; priority bus with a cooldown.
@@ -2855,16 +3007,20 @@ function setArchaeo(on) {
 }
 digBtn.addEventListener("click", () => setArchaeo(!archaeo), sig);
 document.getElementById("wander").addEventListener("click", () => setWander(!wander), sig);
+document.getElementById("sound").addEventListener("click", () => setSound(!audioOn), sig);
 scrubEl.addEventListener("input", () => { playing = false; playBtn.textContent = "play"; setTick(+scrubEl.value, true); }, sig);
 addEventListener("keydown", e => {
+  if (wander && /^Key[WASD]$/.test(e.code)) { walkKeys.add(e.code); return; }
   if (e.key === " ") { e.preventDefault(); playBtn.click(); }
   if (e.key === "a" || e.key === "A") setArchaeo(!archaeo);
   if (e.key === "w" || e.key === "W") setWander(!wander);
+  if (e.key === "s" || e.key === "S") setSound(!audioOn);
   if (e.key === "Escape" && wander) setWander(false);
   if (e.key === "[") tps = Math.max(1, tps / 2);
   if (e.key === "]") tps = Math.min(64, tps * 2);
   document.getElementById("speed").textContent = tps + " t/s";
 }, sig);
+addEventListener("keyup", e => walkKeys.delete(e.code), sig);
 
 // ---- masthead ---------------------------------------------------------------
 document.getElementById("title").textContent =
@@ -2942,6 +3098,7 @@ function frame(now) {
   updateFireflies(now);
   updateSettlements(curTick);
   camStep(dt);
+  soundStep(now);
   updatePeople();
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
@@ -2969,6 +3126,7 @@ window.__dawn = {
   // between builds instead of being hunted for with the mouse. Camera only —
   // it moves the view, never the history.
   look: (x, y, dist, pitch) => {
+    cancelFlight();
     toWorld(x, y, cam.fTarget);
     cam.focus.copy(cam.fTarget); cam.vel.set(0, 0, 0);
     cam.dist = cam.dTarget = dist ?? G * 0.18;
@@ -2996,6 +3154,14 @@ window.__dawn = {
   // and whether the walk mode is on — the two new modes, checkable.
   snow: () => +winterSeverity(curTick).toFixed(3),
   wandering: () => !!wander,
+  // A directed move in progress (or null), and the mix as currently heard —
+  // so a flight that never lands and a layer that never opens are both
+  // checkable without an eye or an ear.
+  flying: () => (flight ? +flight.u.toFixed(3) : null),
+  sound: () => ({on: audioOn,
+                 wind: audio ? +audio.wind.g.gain.value.toFixed(4) : 0,
+                 water: audio ? +audio.water.g.gain.value.toFixed(4) : 0,
+                 fire: audio ? +audio.fire.g.gain.value.toFixed(4) : 0}),
   attestation: (cid) => attestation(cid, Math.floor(curTick)),
 };
 }   // end boot()

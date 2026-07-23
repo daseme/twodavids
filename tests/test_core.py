@@ -293,6 +293,65 @@ def test_resume_continues_an_interrupted_run(tmp_path):
            == new_delibs
 
 
+def test_viewer_directed_moves_are_flown_not_sprung():
+    """A beat shot must be one planned path — focus, distance and pitch on a
+    single clock — with long moves still cutting and the viewer's hand
+    cancelling the flight. A spring-only rig composes the framing piecemeal,
+    which reads as the camera changing its mind."""
+    tpl = (Path(__file__).parent.parent / "dawn" / "viewer_template.html").read_text()
+    shot = tpl.split("function frameShot(")[1].split("function flyTo(")[0]
+    assert "flight = {u: 0" in shot, "a directed move must plan a flight"
+    assert "cut, don't tour" in shot, "the rule against airline tours stands"
+    step = tpl.split("if (flight) {")[1].split("// Critically-damped")[0]
+    # One easing curve drives all three, so the shot composes together.
+    assert step.count("(3 - 2 *") == 1
+    for eased in ("cam.focus.lerpVectors", "cam.dist =", "cam.pitch ="):
+        assert eased in step
+    # The spring's state is written throughout, so handing over never lurches.
+    assert "cam.vel.set(0, 0, 0)" in step
+    for interrupt in ('pointerdown', 'wheel'):
+        handler = tpl.split(f'addEventListener("{interrupt}"')[1].split("}, ")[0]
+        assert "cancelFlight()" in handler, f"{interrupt} must cancel the flight"
+
+
+def test_viewer_sound_is_seeded_ambience_off_until_asked():
+    """Sound is ambience of what is drawn — wind, water, hearths — procedural
+    from the seed (the same bundle roars the same way), silent until the
+    viewer asks, and layered over no event the journal does not hold."""
+    tpl = (Path(__file__).parent.parent / "dawn" / "viewer_template.html").read_text()
+    section = tpl.split("// ---- sound:")[1].split("// ---- the director")[0]
+    assert "Math.random" not in section, "the mix must be deterministic"
+    assert "mulberry32(NSEED" in section, "the noise bed comes from the seed"
+    assert "hash2(" in section, "the crackle is hashed quanta, not chance"
+    assert "new (window.AudioContext" in section
+    assert 'getElementById("sound")' in tpl
+    assert 'setSound(!audioOn)' in tpl, "the button and the key both ask"
+    step = section.split("function soundStep(now) {")[1]
+    assert step.lstrip().startswith("if (!audio || !audioOn) return;")
+    # Every layer is a drawn system heard: storm wind, shore water, hearth.
+    for layer in ("winterSeverity", "DATA.water", "s.glow && s.mesh.visible",
+                  "curDayness"):
+        assert layer in section
+    assert "sound: () =>" in tpl, "the mix must be checkable by a driver"
+
+
+def test_viewer_wasd_walks_only_while_wandering():
+    """The walk takes the keys: WASD drives and turns in wander mode, and
+    the letters' other duties (dig, sound, the wander toggle itself) yield
+    for the walk's duration — otherwise pressing W to go forward would
+    leave the world instead."""
+    tpl = (Path(__file__).parent.parent / "dawn" / "viewer_template.html").read_text()
+    keydown = tpl.split('addEventListener("keydown"')[1]
+    guard, *rest = keydown.splitlines()[1:]
+    assert "wander" in guard and "walkKeys.add" in guard
+    assert any('e.key === "w"' in ln for ln in rest), "the toggle returns above ground"
+    assert 'addEventListener("keyup"' in tpl, "keys must release"
+    step = tpl.split("if (walkKeys.size) {")[1].split("const drive")[0]
+    assert '"KeyA"' in step and '"KeyD"' in step
+    drive = tpl.split("const drive")[1].split(";")[0]
+    assert '"KeyW"' in drive and '"KeyS"' in drive
+
+
 def test_viewer_builds_from_run_dir(tmp_path):
     from dawn.viewer import write_viewer
     e = Engine(3, Params(), out_dir=tmp_path)
