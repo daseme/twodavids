@@ -47,10 +47,26 @@ where the full treatment in VIEWER.md §§2–4 is still to come. -->
   @keyframes panel-in { from { opacity: 0; transform: translateY(8px); } }
   @keyframes panel-in-x { from { opacity: 0; transform: translateX(-50%) translateY(8px); } }
   @keyframes note-in { from { opacity: 0; transform: translateX(-50%) translateY(6px); } }
-  #masthead { top: 14px; left: 14px; padding: 10px 16px 8px; }
+  #masthead { top: 14px; left: 14px; padding: 10px 16px 8px;
+    transition: top 1100ms var(--ease), left 1100ms var(--ease),
+                transform 1100ms var(--ease), opacity 700ms var(--ease); }
   #masthead h1 { font-size: 17px; font-weight: 600; letter-spacing: 0.02em; }
   #masthead .sub { font-size: 11.5px; color: var(--ink-2); margin-top: 2px;
     font-style: italic; }
+  /* The opening: the title takes the centre while the camera makes its one
+     slow flight in, and the furniture waits outside until it lands. */
+  body.open #masthead { left: 50%; top: 38%;
+    transform: translate(-50%, -50%) scale(1.5); text-align: center; }
+  #clock, #legend, #help { transition: opacity 700ms var(--ease); }
+  body.open #clock, body.open #legend, body.open #bar, body.open #help,
+  body.open #margins { opacity: 0 !important; pointer-events: none; }
+  #beginhint { position: fixed; left: 50%; bottom: 14%; z-index: 3;
+    transform: translateX(-50%); pointer-events: none; font-style: italic;
+    font-size: 14px; letter-spacing: 0.09em; color: #efe4c9;
+    text-shadow: 0 1px 3px rgba(10,7,4,0.8), 0 3px 16px rgba(10,7,4,0.6);
+    opacity: 0; transition: opacity 500ms var(--ease); }
+  body.open #beginhint { animation: hint-pulse 2.6s var(--ease) 1.2s infinite; }
+  @keyframes hint-pulse { 0%, 100% { opacity: 0.22; } 50% { opacity: 0.95; } }
   #clock { top: 14px; right: 14px; padding: 8px 16px; text-align: right; }
   #clock .year { font-size: 19px; font-variant-numeric: tabular-nums; }
   #clock .season { font-size: 11px; letter-spacing: 0.14em;
@@ -173,6 +189,7 @@ where the full treatment in VIEWER.md §§2–4 is still to come. -->
   @media (prefers-reduced-motion: reduce) {
     #beat, #dossier, #beat.on, #dossier.on { transition: none; }
     #modenote.on { animation: none; }
+    body.open #beginhint { animation: none; opacity: 0.8; }
   }
 </style>
 
@@ -208,6 +225,7 @@ where the full treatment in VIEWER.md §§2–4 is still to come. -->
 </div>
 <div id="modenote"></div>
 <div id="eracard"></div>
+<div id="beginhint">space to begin</div>
 <div id="help">drag orbit · wheel zoom · click a name to visit · space
   play/pause · a dig mode · w walk the world (wasd walk, drag steers, wheel
   is pace) · s sound ·
@@ -556,6 +574,60 @@ function updateSky(dayness, force) {
   moonDisc.material.opacity = Math.max(0, 1 - dayness * 1.6);
   sunDisc.visible = sunDisc.material.opacity > 0.01;
   moonDisc.visible = moonDisc.material.opacity > 0.01;
+}
+
+// ---- clouds: the sky's furniture, seeded and drifting -----------------------
+// The dome is painted but was empty. These are soft lobed sprites, one
+// shared texture and one shared material (tint is uniform across the sky at
+// any hour, so twenty-two materials would buy nothing), drifting on a fixed
+// prevailing wind and wrapping past the world's edge. A recorded hard
+// winter greys and thickens them into a deck — the storm you can see coming
+// is the same severity the snow and the wind sound already carry. Positions
+// from the seed; motion from the clock, the fireflies' class of invention.
+const cloudTex = (() => {
+  const cv = document.createElement("canvas"); cv.width = 256; cv.height = 128;
+  const g2 = cv.getContext("2d"), rnd = mulberry32(NSEED ^ 0x51ed);
+  for (let i = 0; i < 15; i++) {
+    const x = 38 + rnd() * 180, y = 52 + rnd() * 36, r = 16 + rnd() * 26;
+    const grad = g2.createRadialGradient(x, y, 0, x, y, r);
+    grad.addColorStop(0, "rgba(255,252,246,0.42)");
+    grad.addColorStop(1, "rgba(255,252,246,0)");
+    g2.fillStyle = grad;
+    g2.beginPath(); g2.arc(x, y, r, 0, 7); g2.fill();
+  }
+  return new THREE.CanvasTexture(cv);
+})();
+const cloudMat = new THREE.SpriteMaterial({map: cloudTex, transparent: true,
+                                           depthWrite: false, fog: false, opacity: 0.4});
+const clouds = new THREE.Group();
+{
+  const rnd = mulberry32(NSEED ^ 0xc10d);
+  for (let i = 0; i < 22; i++) {
+    const sp = new THREE.Sprite(cloudMat);
+    const wide = G * (0.10 + rnd() * 0.16);
+    sp.scale.set(wide, wide * (0.30 + rnd() * 0.14), 1);
+    sp.position.set((rnd() * 2 - 1) * G * 0.85, G * (0.34 + rnd() * 0.16),
+                    (rnd() * 2 - 1) * G * 0.85);
+    sp.userData.speed = 0.5 + rnd() * 0.6;
+    clouds.add(sp);
+  }
+  scene.add(clouds);
+}
+const CLOUD_DAY = new THREE.Color(0xfff6e8), CLOUD_NIGHT = new THREE.Color(0x232a44),
+      CLOUD_STORM = new THREE.Color(0x646a76), _cloudTint = new THREE.Color();
+function updateClouds(now, dt, dayness, sev) {
+  for (const sp of clouds.children) {
+    // The prevailing wind stiffens in a storm.
+    sp.position.x += (1.1 + sev * 3.2) * sp.userData.speed * dt;
+    sp.position.z += 0.35 * sp.userData.speed * dt;
+    if (sp.position.x > G) sp.position.x = -G;
+    if (sp.position.z > G) sp.position.z = -G;
+  }
+  _cloudTint.copy(CLOUD_NIGHT).lerp(CLOUD_DAY, dayness)
+            .lerp(CLOUD_STORM, sev * Math.min(1, dayness + 0.25));
+  cloudMat.color.copy(_cloudTint);
+  // Scattered fair-weather cumulus; a closing deck when the record storms.
+  cloudMat.opacity = 0.07 + 0.30 * dayness + 0.34 * sev;
 }
 
 // Terrain: height from elevation (mils, rendering-only — it never drives
@@ -1572,6 +1644,67 @@ function bodyCentre(body) {
   return c;
 }
 
+// ---- birds: the wide shot's pulse -------------------------------------------
+// Feeding flights over the water at the day's hinges — an hour each side of
+// dawn and dusk, gone by full day and full night. The record asserts the
+// water and is silent about birds, so birds are inventable, in the
+// fireflies' class: deterministic from the seed, riding the bodies the
+// flood-fill already found, nine to a flock in a ragged V.
+const flocks = [];
+{
+  const sizes = new Map();
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
+    const id = bodyId[x][y];
+    if (id >= 0) sizes.set(id, (sizes.get(id) || 0) + 1);
+  }
+  const big = [...sizes.entries()].filter(([, n]) => n >= 24)
+              .sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const chev = (() => {
+    const cv = document.createElement("canvas"); cv.width = cv.height = 32;
+    const g2 = cv.getContext("2d");
+    g2.strokeStyle = "#ffffff"; g2.lineWidth = 4; g2.lineCap = "round";
+    g2.beginPath(); g2.moveTo(4, 21); g2.quadraticCurveTo(10, 11, 16, 17);
+    g2.quadraticCurveTo(22, 11, 28, 21); g2.stroke();
+    return new THREE.CanvasTexture(cv);
+  })();
+  for (const [id, n] of big) {
+    const c = bodyCentre(id);
+    if (!c) continue;
+    const N = 9, geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(N * 3), 3));
+    const pts = new THREE.Points(geo, new THREE.PointsMaterial(
+      {color: 0x2a231a, size: G * 0.018, map: chev, transparent: true,
+       alphaTest: 0.05, sizeAttenuation: true, depthWrite: false}));
+    pts.frustumCulled = false; pts.visible = false;
+    scene.add(pts);
+    flocks.push({pts, cx: c[0], cy: c[1], r: Math.sqrt(n) * 0.5,
+                 ph: hash2(id, n, NSEED + 3300) * 6.283,
+                 w: 0.00008 + hash2(n, id, NSEED + 3400) * 0.00005});
+  }
+}
+function updateBirds(now, dayness) {
+  // A band around dayness 0.32: the flights happen at the light's edges.
+  const hinge = Math.max(0, 1 - Math.abs(dayness - 0.32) / 0.30);
+  for (const f of flocks) {
+    f.pts.material.opacity = hinge * 0.85;
+    f.pts.visible = hinge > 0.03;
+    if (!f.pts.visible) continue;
+    const a = now * f.w + f.ph;
+    const cx = f.cx + Math.cos(a) * f.r, cy = f.cy + Math.sin(a) * f.r;
+    const hx = -Math.sin(a), hy = Math.cos(a);   // the flock's heading
+    const p = f.pts.geometry.attributes.position;
+    for (let i = 0; i < 9; i++) {
+      const side = i === 0 ? 0 : (i % 2 ? 1 : -1), rank = i === 0 ? 0 : Math.ceil(i / 2);
+      const x = cx - hx * rank * 0.55 - hy * side * rank * 0.5;
+      const y = cy - hy * rank * 0.55 + hx * side * rank * 0.5;
+      p.array[i * 3] = x - G / 2;
+      p.array[i * 3 + 1] = G * 0.05 + Math.sin(now * 0.012 + i * 1.7) * 0.05;
+      p.array[i * 3 + 2] = y - G / 2;
+    }
+    p.needsUpdate = true;
+  }
+}
+
 // ---- named geography: the map says what the people call it ------------------
 // Feature names come straight from the record (names.water_name); the label is
 // the only invention and it invents nothing — it repeats what the bundle says.
@@ -2027,6 +2160,19 @@ function plantForest() {
     if (!list.length) continue;
     const trunkMat = new THREE.MeshLambertMaterial({color: 0x8a7a63, vertexColors: true});
     const leafMat = new THREE.MeshLambertMaterial({color: 0xffffff, vertexColors: true});
+    leafMat.onBeforeCompile = sh => {
+      sh.uniforms.uWindT = WIND.uT; sh.uniforms.uWindG = WIND.uG;
+      sh.vertexShader = "uniform float uWindT; uniform float uWindG;\n" +
+        sh.vertexShader.replace("#include <begin_vertex>",
+          `#include <begin_vertex>
+           {
+             float wph = instanceMatrix[3][0] * 1.7 + instanceMatrix[3][2] * 2.3;
+             float wsw = sin(uWindT * 1.9 + wph) + 0.5 * sin(uWindT * 3.7 + wph * 1.3);
+             float lift = max(0.0, position.y);
+             transformed.x += wsw * uWindG * lift;
+             transformed.z += wsw * 0.6 * uWindG * lift;
+           }`);
+    };
     const trunks = new THREE.InstancedMesh(TRUNK[kind], trunkMat, list.length);
     const leaves = new THREE.InstancedMesh(CANOPY[kind], leafMat, list.length);
     // Winter bares the broadleaves: same trunks, a smaller sparser crown.
@@ -2062,6 +2208,13 @@ function plantForest() {
     forest[kind] = {trunks, leaves, cols, full, bare, n: list.length};
   }
 }
+// Wind in the crowns: a vertex sway patched into the leaf material, phasing
+// off each instance's own translation so the stand never moves as one sheet.
+// The §7 hazard is respected — the patched material is used by exactly these
+// InstancedMeshes and their instanceColor is always set below. Gusts follow
+// the recorded storm severity, so a hard winter moves the trees, the snow,
+// and the wind sound together.
+const WIND = {uT: {value: 0}, uG: {value: 0.02}};
 plantForest();
 
 function updateForest(tick) {
@@ -2532,20 +2685,20 @@ const SHOTS = {fusion: {d: 0.20, p: 0.62}, ratchet: {d: 0.30, p: 1.28},
                unfusion: {d: 0.22, p: 0.7}, liberation: {d: 0.17, p: 0.5},
                schism: {d: 0.55, p: 0.95}, extinction: {d: 0.45, p: 1.1},
                encounter: {d: 0.22, p: 0.68}, succession: {d: 0.24, p: 0.78}};
-function frameShot(kind) {
+function frameShot(kind, hold) {
   const s = SHOTS[kind] || {d: 0.28, p: 0.9};
   cam.dTarget = G * s.d;
   cam.pTarget = s.p;
   const len = cam.fTarget.distanceTo(cam.focus);
-  if (len > G * 0.9) {   // cut, don't tour
+  if (len > G * 0.9 && !hold) {   // cut, don't tour
     cancelFlight();
     cam.focus.copy(cam.fTarget).add(v3.set(G * 0.06, 0, G * 0.06));
     cam.vel.set(0, 0, 0);
     cam.dist = cam.dTarget; cam.pitch = cam.pTarget;
     return;
   }
-  if (len < G * 0.02) return;   // already on it; let the spring hold
-  flight = {u: 0, dur: 0.9 + 2.4 * (len / (G * 0.9)),
+  if (len < G * 0.02 && !hold) return;   // already on it; let the spring hold
+  flight = {u: 0, dur: hold || 0.9 + 2.4 * (len / (G * 0.9)),
             f0: cam.focus.clone(), d0: cam.dist, q0: cam.pitch,
             d1: cam.dTarget, q1: cam.pTarget, len};
 }
@@ -2980,7 +3133,7 @@ function setTick(t, hard) {
     if (dossierCid !== null) showDossier(dossierCid, tick);
   }
 }
-playBtn.addEventListener("click", () => { playing = !playing; playBtn.textContent = playing ? "pause" : "play"; }, sig);
+playBtn.addEventListener("click", () => { endOpening(); playing = !playing; playBtn.textContent = playing ? "pause" : "play"; }, sig);
 
 // ---- archaeologist mode toggle ----------------------------------------------
 const digBtn = document.getElementById("dig"), modeNote = document.getElementById("modenote");
@@ -3045,6 +3198,32 @@ setTick(+(hash.get("t") || 0), true);
 if (hash.has("dig")) setArchaeo(true);
 if (hash.has("play")) playBtn.click();
 toWorld(G / 2, G / 2, cam.fTarget); cam.focus.copy(cam.fTarget);
+// ---- the opening: a held dawn and one slow flight in ------------------------
+// A first-time visitor gets the world introduced: the title holds centre,
+// the camera starts high and wide with the low sun in frame, and makes a
+// single slow flight down to the first hearth the record holds. Time is
+// still paused — tick 0 is dawn by the clock's own arithmetic — so the
+// light waits with it. Deep links (#t, #play, #dig) skip the ceremony and
+// land where they point; so does a reduced-motion preference, and any touch
+// of the controls ends it early, the viewer's hand outranking ceremony too.
+let opening = false;
+function endOpening() {
+  if (!opening) return;
+  opening = false;
+  document.body.classList.remove("open");
+}
+if (!hash.has("t") && !hash.has("play") && !hash.has("dig") &&
+    !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  opening = true;
+  document.body.classList.add("open");
+  cam.dist = cam.dTarget = G * 1.5;
+  cam.pitch = cam.pTarget = 0.55;
+  cam.yaw = Math.PI + 0.5;   // the tick-0 sun sits +x; put it in frame
+  const first = +Object.keys(DATA.cultures)[0];
+  const site = sitesOf(first, 0);
+  if (site) toWorld(site.anchor[0], site.anchor[1], cam.fTarget);
+  frameShot("succession", 8);   // low and close, flown slowly — forced, not cut
+}
 function frame(now) {
   if (ctl.signal.aborted) { renderer.dispose(); return; }
   const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
@@ -3052,7 +3231,8 @@ function frame(now) {
     setTick(curTick + tps * dt, false);
     if (curTick >= T - 1) { playing = false; playBtn.textContent = "play"; }
   }
-  directorStep(Math.floor(curTick), now);
+  if (!opening) directorStep(Math.floor(curTick), now);   // ceremony first
+  if (opening && !flight) endOpening();   // landed, or waved off
   updateMotion(curTick, now);
   updateWater(now);
   updateMargins(Math.floor(curTick));
@@ -3092,6 +3272,11 @@ function frame(now) {
       sun.color.lerp(SUN_WINTER, sev * 0.45);
       skyFill.intensity += 0.18 * sev;
     }
+    // The storm signal, fanned out: what falls, what drifts, what sways.
+    WIND.uT.value = now / 1000;
+    WIND.uG.value = 0.02 + sev * 0.10;
+    updateClouds(now, dt, dayness, sev);
+    updateBirds(now, dayness);
   }
   updateHearthlight(now);
   updateWinter(curTick, now);
@@ -3146,6 +3331,8 @@ window.__dawn = {
                   boats: boatPool.filter(m => m.visible).length,
                   walkers: walkerPool.filter(m => m.visible).length,
                   fires: firePool.filter(g => g.visible).length,
+                  clouds: clouds.children.length,
+                  birds: flocks.reduce((n, f) => n + (f.pts.visible ? 1 : 0), 0),
                   glows: [...groups.values()].reduce((n, g) => n +
                     [...g.slots.values()].filter(s => s.glow && s.mesh.visible).length, 0),
                   smoke: smokePuffs.filter(s => s.visible).length,
@@ -3158,6 +3345,7 @@ window.__dawn = {
   // so a flight that never lands and a layer that never opens are both
   // checkable without an eye or an ear.
   flying: () => (flight ? +flight.u.toFixed(3) : null),
+  opening: () => opening,
   sound: () => ({on: audioOn,
                  wind: audio ? +audio.wind.g.gain.value.toFixed(4) : 0,
                  water: audio ? +audio.water.g.gain.value.toFixed(4) : 0,

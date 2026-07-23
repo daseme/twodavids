@@ -335,6 +335,44 @@ def test_viewer_sound_is_seeded_ambience_off_until_asked():
     assert "sound: () =>" in tpl, "the mix must be checkable by a driver"
 
 
+def test_viewer_opening_is_ceremony_not_default():
+    """The first frame is the hook: a held dawn, one slow forced flight to
+    the first hearth, title centred — but deep links and reduced-motion
+    skip it, and any touch of the controls ends it early."""
+    tpl = (Path(__file__).parent.parent / "dawn" / "viewer_template.html").read_text()
+    setup = tpl.split("// ---- the opening:")[1].split("function frame(")[0]
+    assert 'frameShot("succession", 8)' in setup, "the flight in is forced, not cut"
+    for skip in ('hash.has("t")', 'hash.has("play")', 'hash.has("dig")',
+                 "prefers-reduced-motion"):
+        assert skip in setup
+    assert 'beginhint' in tpl and "space to begin" in tpl
+    loop = tpl.split("function frame(now)")[1]
+    assert "if (!opening) directorStep" in loop, "no beat may hijack the flight in"
+    assert "opening && !flight" in loop, "landing or a cancelled flight ends it"
+    assert "endOpening()" in tpl.split('getElementById("play")')[0] or \
+           "endOpening(); playing" in tpl
+    assert "opening: () => opening" in tpl, "checkable by a driver"
+
+
+def test_viewer_sky_and_ambient_life_are_seeded():
+    """Clouds, birds and crown-sway are the hook list's ambience: all three
+    deterministic from the seed, and the storm that the journal records must
+    move all of them — one severity signal, fanned out."""
+    tpl = (Path(__file__).parent.parent / "dawn" / "viewer_template.html").read_text()
+    clouds = tpl.split("// ---- clouds:")[1].split("// Terrain:")[0]
+    assert "mulberry32(NSEED" in clouds and "sev" in clouds
+    birds = tpl.split("// ---- birds:")[1].split("// ---- named geography")[0]
+    assert "hash2(" in birds and "bodyCentre(" in birds, "flocks ride recorded water"
+    assert "dayness" in birds, "flights happen at the light's edges"
+    sway = tpl.split("leafMat.onBeforeCompile")[1].split("};")[0]
+    assert "instanceMatrix" in sway and "uWindG" in sway
+    fan = tpl.split("// The storm signal, fanned out")[1]
+    for driven in ("WIND.uG.value", "updateClouds", "updateBirds"):
+        assert driven in fan
+    assert "instanceColor = new THREE.InstancedBufferAttribute" in tpl, \
+        "the §7 hazard: a patched material on instancing needs instanceColor"
+
+
 def test_viewer_wasd_walks_only_while_wandering():
     """The walk takes the keys: WASD drives and turns in wander mode, and
     the letters' other duties (dig, sound, the wander toggle itself) yield

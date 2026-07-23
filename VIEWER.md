@@ -146,6 +146,50 @@ must not leave the world. The flight and the mix are instrumented in
 `window.__dawn` (`flying`, `sound`), so both can be checked by a driver
 rather than by eye or ear. Nothing remains on the old list.*
 
+**The hook list (2026-07-23).** What a first-time visitor sees, in the order
+they see it — each item held to the §0/§5 discipline, ambience of the
+record's standing and nothing more:
+1. **An opening sequence.** The page now loads paused, overhead, at year 0 —
+   the weakest possible first frame. Instead: a held dawn, one slow
+   establishing flight over the world under the title card, settling on the
+   first settlement, then control handed over with "space to begin".
+2. **Clouds.** The dome is painted but empty. Drifting seeded sprites,
+   flat-bottomed, lit by the sun's colour, thickening into a grey deck when
+   a recorded storm's severity rises — weather you can see coming.
+3. **Birds.** Wide shots are still except water. Small deterministic flocks
+   over the water bodies at dawn and dusk — evidence-free decoration, the
+   fireflies' class.
+4. **Wind in the trees.** Vertex sway on the instanced crowns, gusting with
+   the same severity that drives snow and the wind sound layer, so a storm
+   is visible, audible, and felt as one signal.
+5. **Beat cards as illuminated marginalia.** The product *is* a chronicle:
+   drop caps, a gold-leaf initial at fusion, redaction strikes in the card's
+   own type.
+6. **Water polish.** A darker wet band on the shore's last cells; a
+   sun-glitter path on the big bodies. Shores are in most frames.
+Course: 1 + 2 first (the opening and the sky are the first ten seconds),
+then 3 + 4 as one ambient-life pass, 5 + 6 after.
+
+**The fourth visual pass (2026-07-23)** shipped the first four of the hook
+list. The page now opens with ceremony: a held dawn (time still paused —
+tick 0 is dawn by the clock's own arithmetic), the title centred, and one
+slow forced flight from high and wide down to the first hearth the record
+holds, sun in frame. Deep links, a reduced-motion preference, or any touch
+of the controls skip or end it; no beat may hijack the flight in
+(`directorStep` waits out the ceremony); the furniture waits outside until
+it lands. The sky gained its furniture: twenty-two cloud sprites off one
+shared texture and material (tint is uniform across the sky at any hour),
+seeded, drifting on a fixed prevailing wind, greying and thickening into a
+deck when a recorded storm's severity rises — the storm you can see coming
+is the same signal the snow and the wind sound already carry. Birds ride
+the flood-filled water bodies, nine to a flock in a ragged V, only at the
+light's edges — a band around dayness 0.32, gone by full day and full
+night. And the crowns sway: a vertex patch on the leaf material, phased off
+each instance's own translation so the stand never moves as one sheet, the
+gust uniform driven by the same severity — §7's instancing hazard respected,
+instanceColor set as it always was. Still to come from the list: beat cards
+as illuminated marginalia, and the water's wet band and glitter path.*
+
 ## 0. The architecture in one sentence
 
 Because the sim is deterministic and journal-replayable, the viewer is a
