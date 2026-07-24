@@ -1,0 +1,53 @@
+# The eye, in CI (GAP.md §0): capture the fixed shot list from the committed
+# seed-3 viewer bundle and pixel-diff against the committed references.
+# Captures are deterministic (frozen clock, SwiftShader), so a red run means
+# the frame changed and the references were not re-accepted with it.
+#
+# The one honest caveat: UI text rasterises with system fonts, so the first
+# run on a fresh runner image may drift from locally-captured references.
+# If that happens, download the shots artifact, review, and either accept
+# those captures as the references or raise ALLOW in shots/compare.mjs.
+name: shots
+on:
+  push:
+    paths:
+      - "runs/seed-3/viewer.html"
+      - "shots/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/shots.yml"
+  pull_request:
+    paths:
+      - "runs/seed-3/viewer.html"
+      - "shots/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/shots.yml"
+
+jobs:
+  shots:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # preshots skips the viewer rebuild here: the run data (world.json et
+      # al.) is not in git, only the built bundle is. Keeping the bundle
+      # fresh is the local loop's job — `npm run shots` rebuilds it before
+      # every capture, so a stale committed bundle can only mean the dev
+      # never ran the shots they are asking CI to verify.
+      - run: npm run shots
+      - run: npm run shots:diff
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shots
+          path: |
+            shots/out/
+            shots/diff/
+          if-no-files-found: ignore
