@@ -6,6 +6,17 @@
 __pycache__/
 *.egg-info/
 .pytest_cache/
+node_modules/
 
-# generated worlds (regenerable: seed + code = world)
-runs/
+# generated worlds (regenerable: seed + code = world) — except the seed-3
+# viewer bundle, pinned so the screenshot harness (GAP §0) has a fixed
+# subject locally and in CI. `npm run shots` rebuilds it from the template
+# before every capture, so the tracked copy never goes stale.
+runs/*
+!runs/seed-3/
+runs/seed-3/*
+!runs/seed-3/viewer.html
+
+# screenshot harness output (references in shots/ref ARE tracked)
+shots/out/
+shots/diff/

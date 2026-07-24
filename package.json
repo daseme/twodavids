@@ -1,0 +1,33 @@
+{
+  "name": "twodavids",
+  "version": "1.0.0",
+  "description": "A world-history simulator that inverts the usual causal chain of procedural worldbuilding: cultures here are self-created through mutual differentiation (schismogenesis), conscious refusal, and argument; terrain constrains and prices choices but never selects them. The primary output is a **chronicle** \u2014 generated world-histories meant to be read. There is no victory condition.",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "preshots": "test ! -f runs/seed-3/world.json || .venv/bin/dawn viewer runs/seed-3",
+    "shots": "node shots/capture.mjs",
+    "shots:diff": "node shots/compare.mjs",
+    "shots:accept": "cp shots/out/*.png shots/ref/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/daseme/twodavids.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/daseme/twodavids/issues"
+  },
+  "homepage": "https://github.com/daseme/twodavids#readme",
+  "devDependencies": {
+    "pixelmatch": "^7.2.0",
+    "playwright": "^1.61.1",
+    "pngjs": "^7.0.0"
+  },
+  "private": true,
+  "type": "module"
+}

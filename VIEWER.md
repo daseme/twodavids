@@ -191,7 +191,10 @@ instanceColor set as it always was. Still to come from the list: beat cards
 as illuminated marginalia, and the water's wet band and glitter path.*
 
 **The reality list (2026-07-23).** The verdict from a fresh eye: it reads as
-a middle-school diorama, not a finished world. The diagnosis, before any
+a middle-school diorama, not a finished world. (The follow-up audit — what
+separates us from the best walkabout worlds on this same stack, ranked and
+sequenced — lives in GAP.md: the screenshot harness first, then the post
+chain, grass, the water's edge, contact AO, camera body, audio locality.) The diagnosis, before any
 prescription: (1) the camera looks *down* at a model — pitch 0.9 at 1.15
 world-widths is god-view of a model railway, and real places are filmed
 across, low; (2) no scale cues — trees, houses and mountains are all the
