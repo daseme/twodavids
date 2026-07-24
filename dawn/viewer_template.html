@@ -241,6 +241,10 @@ where the full treatment in VIEWER.md §§2–4 is still to come. -->
      page blank. Separate module scripts keep the two minified scopes apart. -->
 <script type="module">__THREE_CORE_JS__</script>
 <script type="module">__THREE_MODULE_JS__</script>
+<!-- The post chain (GAP §1): EffectComposer, bloom and the output pass,
+     vendored from three's examples the same way — wired offline by
+     dawn/vendor/build-post.mjs, published on window.__POST. -->
+<script type="module">__POST_JS__</script>
 <script type="module">
 const THREE = window.THREE;
 
@@ -413,6 +417,16 @@ const renderer = new THREE.WebGLRenderer({antialias: true});
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+// The film curve (GAP §1). ACES compresses highlights the way film does —
+// the sky stops clipping to paper-white and sunlit slopes roll off instead
+// of saturating. Everything authored before this line was graded against a
+// straight-through output; every colour below has been re-tuned against
+// this curve, so changing the operator means re-grading the world.
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+// The curve's toe pulls the midtones down; the lift buys them back without
+// letting the sky clip. Part of the re-grade, not a fudge: every palette
+// below was retuned with this exposure in the loop.
+renderer.toneMappingExposure = 1.12;
 stage.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x191510);
@@ -422,6 +436,51 @@ scene.background = new THREE.Color(0x191510);
 // and its furniture are fog-exempt, so only the land fades.
 scene.fog = new THREE.Fog(0x191510, G * 0.55, G * 2.4);
 const camera = new THREE.PerspectiveCamera(46, 1, 0.1, G * 8);
+
+// ---- the post chain (GAP §1): scene → bloom → film curve → grain ------------
+// One render becomes two, and the image passes through a chain before the
+// screen — the single habit every world in the comparison set shares. The
+// scene is drawn into a half-float target (multisampled: the composer would
+// otherwise silently drop the MSAA the renderer was asked for), bloom lifts
+// what is already bright, OutputPass applies the ACES curve and the sRGB
+// transfer, and a last pass adds grain and a breath of vignette in-pipeline
+// — over the world, under the DOM UI, which is marginalia and stays clean.
+const { EffectComposer, RenderPass, UnrealBloomPass, ShaderPass, OutputPass } =
+  window.__POST;
+const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(
+  1, 1, {type: THREE.HalfFloatType, samples: 4}));
+composer.addPass(new RenderPass(scene, camera));
+// Threshold sits below the emitters (boosted past 1 where they should read
+// as light) but above the lit land: bloom is for fire, sun, glitter and
+// snow-light, not a soft-focus filter over the world.
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.35, 0.5, 0.85);
+composer.addPass(bloomPass);
+composer.addPass(new OutputPass());
+// Grain is hashed from pixel and time — deterministic under the harness's
+// frozen clock, alive at play. Strongest in the shadows, near-absent in the
+// lights, like stock; the in-pipeline vignette is a breath, the framing
+// warmth stays with the CSS vignette above the canvas.
+const grainPass = new ShaderPass({
+  uniforms: {tDiffuse: {value: null}, uTime: {value: 0},
+             uGrain: {value: 0.045}, uVig: {value: 0.14}},
+  vertexShader: `varying vec2 vUv;
+    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse; uniform float uTime, uGrain, uVig;
+    varying vec2 vUv;
+    float hash(vec2 p) {
+      return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+    }
+    void main() {
+      vec4 c = texture2D(tDiffuse, vUv);
+      float g = hash(gl_FragCoord.xy + fract(uTime * 0.61) * 371.0) - 0.5;
+      float l = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+      c.rgb += g * uGrain * (0.30 + 0.70 * (1.0 - l));
+      vec2 d = vUv - 0.5;
+      c.rgb *= 1.0 - uVig * dot(d, d) * 2.0;
+      gl_FragColor = c;
+    }`});
+composer.addPass(grainPass);
 
 // Warm key, cool fill, and a lower sun: the brief's golden hour, where lit
 // planes go warm and shadowed ones go cool. The previous rig was bright and
@@ -513,6 +572,11 @@ function glowSprite(core, halo, size) {
 }
 const sunDisc = glowSprite("rgba(255,233,184,1)", "rgba(232,150,74,0.35)", G * 0.42);
 const moonDisc = glowSprite("rgba(223,228,242,0.95)", "rgba(159,180,216,0.25)", G * 0.30);
+// Pushed past 1: the discs are emitters, and the bloom threshold is what
+// separates a light from a bright sticker (GAP §1). The moon stays nearer
+// the paper — moonlight blooms as a breath, not a lamp.
+sunDisc.material.color.setScalar(1.55);
+moonDisc.material.color.setScalar(1.18);
 sunDisc.renderOrder = moonDisc.renderOrder = -1;
 scene.add(sunDisc, moonDisc);
 
@@ -2059,7 +2123,8 @@ function placeSlot(g, cid, id, spot, x, y, scale, now) {
     if (slot.glow) { m.remove(slot.glow); slot.glow = null; }
     if (spot.kind === "hearth" || spot.kind === "lodge" || spot.kind === "keep") {
       const sp = new THREE.Sprite(new THREE.SpriteMaterial(
-        {map: fireGlowTex, color: 0xffa050, transparent: true, opacity: 0,
+        {map: fireGlowTex, transparent: true, opacity: 0,
+         color: new THREE.Color(0xffa050).multiplyScalar(2.3),
          blending: THREE.AdditiveBlending, depthWrite: false}));
       sp.scale.setScalar(spot.kind === "hearth" ? 0.5 : 0.7);
       sp.position.y = spot.kind === "hearth" ? 0.12 : 0.18;
@@ -2459,7 +2524,8 @@ function updatePeople() {
 // boundary softening — both rendered from the journal's own flow/feast
 // records, positions interpolated between the two peoples' anchors. Pools
 // are reused every frame, so seeking is free and deterministic.
-MAT.fire = new THREE.MeshLambertMaterial({color: 0xd96f2b, emissive: 0xc75c14});
+MAT.fire = new THREE.MeshLambertMaterial(
+  {color: 0xd96f2b, emissive: 0xc75c14, emissiveIntensity: 1.7});
 const WALK = 24, FEAST_GLOW = 8;
 const anchorOf = (cid, tick) => { const s = sitesOf(cid, tick); return s && s.anchor; };
 const walkerPool = [];
@@ -2535,7 +2601,7 @@ for (let i = 0; i < 48; i++) {
 }
 function updateHearthlight(now) {
   const nightF = 1 - curDayness;
-  MAT.ember.emissiveIntensity = 1 + nightF * 2.2;   // beds glow against the dark
+  MAT.ember.emissiveIntensity = 1 + nightF * 3.1;   // beds glow against the dark
   let e = 0;
   for (const [cid, g] of groups) {
     for (const [, slot] of g.slots) {
@@ -2659,7 +2725,9 @@ function updateFireflies(now) {
   if (!fireflies.visible) return;
   const c = fireflyGeo.attributes.color;
   for (let i = 0; i < FF_N; i++) {
-    const k = on * Math.pow(Math.max(0, Math.sin(now * 0.0016 + i * 2.39)), 6);
+    // 1.8× past unity at peak: a firefly is an emitter, and the bloom pass
+    // is what turns the point into a spark (GAP §1).
+    const k = on * 1.8 * Math.pow(Math.max(0, Math.sin(now * 0.0016 + i * 2.39)), 6);
     c.array[i * 3] = k * 0.75; c.array[i * 3 + 1] = k; c.array[i * 3 + 2] = k * 0.35;
   }
   c.needsUpdate = true;
@@ -3394,7 +3462,8 @@ document.getElementById("subtitle").textContent =
 // ---- main loop --------------------------------------------------------------
 function resize() {
   const w = stage.clientWidth, h = stage.clientHeight;
-  renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
+  renderer.setSize(w, h); composer.setSize(w, h);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
   const lh = 0.036;
   for (const sp of labelGroup.children)
     sp.scale.set(lh * sp.userData.aspect / (w / h), lh, 1);
@@ -3403,12 +3472,6 @@ addEventListener("resize", resize, sig); resize();
 
 let prev = performance.now();
 let dwell = 1;   // the film's breathing: 1 at speed, 0.35 under a beat card
-// #t=1234&play seeks (and optionally starts) — a shareable moment.
-const hash = new URLSearchParams(location.hash.slice(1));
-setTick(+(hash.get("t") || 0), true);
-if (hash.has("dig")) setArchaeo(true);
-if (hash.has("play")) playBtn.click();
-toWorld(G / 2, G / 2, cam.fTarget); cam.focus.copy(cam.fTarget);
 // ---- the opening: a held dawn and one slow flight in ------------------------
 // A first-time visitor gets the world introduced: the title holds centre,
 // the camera starts high and wide with the low sun in frame, and makes a
@@ -3417,12 +3480,24 @@ toWorld(G / 2, G / 2, cam.fTarget); cam.focus.copy(cam.fTarget);
 // light waits with it. Deep links (#t, #play, #dig) skip the ceremony and
 // land where they point; so does a reduced-motion preference, and any touch
 // of the controls ends it early, the viewer's hand outranking ceremony too.
+//
+// Declared before the deep-link block below: #play clicks the play button,
+// whose handler calls endOpening() — with the declaration after it, that
+// click died in the let's dead zone and #play never actually started
+// playback. The harness's per-shot reload (shots/capture.mjs) is what
+// finally surfaced this.
 let opening = false;
 function endOpening() {
   if (!opening) return;
   opening = false;
   document.body.classList.remove("open");
 }
+// #t=1234&play seeks (and optionally starts) — a shareable moment.
+const hash = new URLSearchParams(location.hash.slice(1));
+setTick(+(hash.get("t") || 0), true);
+if (hash.has("dig")) setArchaeo(true);
+if (hash.has("play")) playBtn.click();
+toWorld(G / 2, G / 2, cam.fTarget); cam.focus.copy(cam.fTarget);
 if (!hash.has("t") && !hash.has("play") && !hash.has("dig") &&
     !matchMedia("(prefers-reduced-motion: reduce)").matches) {
   opening = true;
@@ -3436,7 +3511,7 @@ if (!hash.has("t") && !hash.has("play") && !hash.has("dig") &&
   frameShot("succession", 8);   // low and close, flown slowly — forced, not cut
 }
 function frame(now) {
-  if (ctl.signal.aborted) { renderer.dispose(); return; }
+  if (ctl.signal.aborted) { composer.dispose(); renderer.dispose(); return; }
   const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
   if (playing) {
     // Beat dwell: while a card is up the film breathes — time eases to a
@@ -3475,13 +3550,22 @@ function frame(now) {
                      G * (0.18 + 0.45 * dayness * SUNALT[season]),
                      Math.sin(th) * G * 0.4)
        .normalize().multiplyScalar(G * 1.9);
-    sun.intensity = 1.1 + 1.7 * dayness;
+    // Floors raised against the ACES toe (GAP §1): the curve buys its filmic
+    // highlights by pressing hardest on exactly the range the nocturne and
+    // the under-canopy shadows live in, so night light starts higher than it
+    // did when the output was straight-through.
+    sun.intensity = 1.25 + 1.6 * dayness;
     sun.color.copy(SUN_NIGHT).lerp(SUN_DAY, dayness);
     if (season === 3) sun.color.lerp(SUN_WINTER, 0.35 * dayness);
     // Night is a painted nocturne, not an unlit scene: the fill drops and goes
     // indigo, so silhouettes stay readable while the warmth leaves the land.
-    skyFill.intensity = 0.30 + 0.62 * dayness;
+    skyFill.intensity = 0.42 + 0.55 * dayness;
     skyFill.color.copy(SKY_NIGHT).lerp(SKY_DAY, dayness);
+    // Day-for-night: the eye opens in the dark, so the exposure does too.
+    // Cubed, so the lift lives in true night and leaves dawn and dusk on
+    // the base curve — the golden hours are the identity and stay graded
+    // as authored.
+    renderer.toneMappingExposure = 1.12 + 0.38 * Math.pow(1 - dayness, 3);
     updateSky(dayness);
     // A recorded hard winter flattens and pales whatever the hour set.
     const sev = winterSeverity(curTick);
@@ -3504,7 +3588,8 @@ function frame(now) {
   updateTreeFade();
   soundStep(now);
   updatePeople();
-  renderer.render(scene, camera);
+  grainPass.uniforms.uTime.value = now / 1000;
+  composer.render(dt);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
@@ -3529,12 +3614,16 @@ window.__dawn = {
   // Aim the rig at a grid cell, so a shot of a named place is repeatable
   // between builds instead of being hunted for with the mouse. Camera only —
   // it moves the view, never the history.
-  look: (x, y, dist, pitch) => {
+  look: (x, y, dist, pitch, yaw) => {
     cancelFlight();
     toWorld(x, y, cam.fTarget);
     cam.focus.copy(cam.fTarget); cam.vel.set(0, 0, 0);
     cam.dist = cam.dTarget = dist ?? G * 0.18;
     cam.pitch = cam.pTarget = pitch ?? 0.55;
+    // Heading too, or a shot of a named place faces whatever boot left:
+    // wander walks off from the looked-at spot along the current yaw, so a
+    // repeatable walking shot needs all four of its camera numbers pinned.
+    if (yaw !== undefined) cam.yaw = yaw;
   },
   // The river graph as built: segment and node counts against the record's own,
   // the largest accumulation reached, and the triangles it cost. A course that

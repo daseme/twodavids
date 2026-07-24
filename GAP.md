@@ -48,6 +48,23 @@ viewer rebuild. References are committed; CI (`.github/workflows/shots.yml`)
 re-captures from the committed bundle and diffs on every viewer-touching
 push. The loop exists — §1 can begin.
 
+**Hardened (2026-07-24), by §1's grading loop, which promptly caught three
+latent bugs.** (1) When consecutive shots differed only in their `#t` hash,
+`page.goto` was a same-document navigation and the app never rebooted — every
+shot after the first showed the *previous* shot's world, so the first
+reference set never actually honoured its ticks (night-hearths was not night;
+wander leaked into four frames). Capture now hops through `about:blank` so
+every shot boots clean. (2) With a real boot, `#play` turned out to have been
+dead since the opening ceremony landed: the play button's handler touched
+`opening` inside its declaration's dead zone, the click died, and beat-card
+had never once captured a playing world. (3) Wander derives its start from
+the camera's actual position, which under the frozen clock had not yet
+followed a `look()` — the harness now settles one frame between the two. The
+shot list's ticks were then re-solved so each frame shows what its note
+claims (`%32`: 0 dawn, 8 noon, 24 dark; season is `%4`), `look` gained a yaw,
+and capture takes shot names as arguments so a grading loop can re-capture
+two frames instead of eight.
+
 ## 1. The post chain — the film look
 
 The single biggest visual jump available, and the one every comparison
@@ -73,6 +90,25 @@ culture hues: all re-tuned against the new curve. Bloom and tonemap must
 land together with a full re-grade, as one pass, compared by the §0
 screenshot harness. Attempting it without the harness is how we get a
 worse world that is technically more advanced.
+
+**Built (2026-07-24).** Scene → bloom → ACES → grain: EffectComposer,
+RenderPass, UnrealBloomPass, OutputPass and a grain/vignette ShaderPass,
+vendored offline by `dawn/vendor/build-post.mjs` (three r178 examples
+rewired onto `window.THREE`, published as `window.__POST`, ~46 KB) and
+inlined by the build exactly like three itself. The scene renders into a
+multisampled half-float target, so the MSAA the renderer was asked for
+survives the composer. The grade against the curve: ACES at exposure 1.12
+with a day-for-night lift (cubed toward true night, so the golden hours
+stay on the base curve), night floors raised on key and fill, and every
+emitter — sun disc, hearth glows, embers, fireflies — pushed past 1.0 so
+the 0.85 bloom threshold separates a light from a bright sticker. Grain
+is hashed from pixel and the stepped clock: deterministic under the
+harness, alive at play; the framing warmth stays with the CSS vignette.
+A/B'd frame-by-frame on §0's harness, which the pass repaid by exposing
+three latent bugs (see §0's hardening note) — the corrected shot list
+finally captured what it always claimed: beat-card's ratchet with the
+card up and playback running, dig-wide's mounds at noon, night that is
+night, with hearths that bloom against it.
 
 ## 2. The missing bottom layer — grass and understory
 

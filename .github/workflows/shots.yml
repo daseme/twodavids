@@ -27,7 +27,10 @@ on:
 jobs:
   shots:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # The post chain (GAP §1) roughly doubled per-frame cost under software
+    # WebGL: a full capture runs ~12 minutes locally and CI runners are
+    # slower still.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

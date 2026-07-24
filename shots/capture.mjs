@@ -6,6 +6,9 @@
 // mode (compare.mjs) a diff of the change and not of the weather.
 //
 // Run: npm run shots   (writes shots/out/<name>.png)
+// Name arguments filter the list — `node shots/capture.mjs valley-dawn storm`
+// re-captures two frames instead of eight, which is what makes a grading
+// loop (GAP §1) tolerable under software WebGL.
 import {chromium} from "playwright";
 import {mkdirSync, writeFileSync} from "fs";
 import path from "path";
@@ -56,8 +59,22 @@ const snap = async file =>
   writeFileSync(file, Buffer.from(
     (await cdp.send("Page.captureScreenshot", {format: "png"})).data, "base64"));
 
+const only = process.argv.slice(2);
+const unknown = only.filter(n => !SHOTS.some(s => s.name === n));
+if (unknown.length) {
+  console.error(`unknown shot(s): ${unknown.join(", ")}`);
+  process.exit(1);
+}
 const viewerUrl = "file://" + path.join(root, VIEWER);
 for (const shot of SHOTS) {
+  if (only.length && !only.includes(shot.name)) continue;
+  // A hop through about:blank first: when two consecutive shots differ only
+  // in their #t hash, goto is a same-document navigation and the app never
+  // reboots — the previous shot's tick, mode and wander state leak into the
+  // next frame, silently ignoring the hash the shot list wrote. (The first
+  // reference set was captured with exactly that leak; every shot after the
+  // first showed the previous shot's world.)
+  await page.goto("about:blank");
   await page.goto(viewerUrl + shot.hash, {waitUntil: "load"});
   await page.waitForFunction(() => window.__dawn !== undefined);
   await page.addStyleTag({content: STILL_CSS});   // survives goto; reassert
@@ -74,7 +91,14 @@ for (const shot of SHOTS) {
     });
     console.log(`  storm-seek: tick ${best.bt}, severity ${best.bs}`);
   }
-  if (shot.look) await page.evaluate(l => window.__dawn.look(...l), shot.look);
+  if (shot.look) {
+    await page.evaluate(l => window.__dawn.look(...l), shot.look);
+    // One frame to settle: look() moves the rig's targets, but the camera
+    // itself only follows on the next step — and wander derives its start
+    // and heading from the camera's actual position, so clicking it before
+    // a step would walk off from wherever boot left the lens.
+    await page.evaluate(() => window.__step(1));
+  }
   if (shot.pre?.includes("wander")) await page.click("#wander");
   if (shot.pre?.includes("legend-first")) await page.click("#legend .p");
   await page.evaluate(n => window.__step(n), shot.steps);

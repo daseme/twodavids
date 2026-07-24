@@ -499,6 +499,18 @@ own frequency is worthless, and any painted feature must be measured for
 coverage, since a feature at 90% coverage is a wash and looks identical to a
 bug.
 
+**A second expiry (2026-07-24).** With geometry, shadows and the reality
+pass in place, the paragraph above expired the rest of the way: the next
+gap *was* the post chain (GAP.md §1, where the audit and the build note
+live). The image now runs scene → bloom → ACES → grain through an
+EffectComposer vendored inline the same way three.js itself is
+(`dawn/vendor/build-post.mjs`), and the world was re-graded against the
+curve rather than under it. This is also where we stop being comparable to
+the reference swatch-for-swatch: it ships hand-picked sRGB hexes straight
+to the framebuffer, we pass authored colour through a film curve, and from
+here on a hue can only be judged in a graded frame — which is what the
+GAP §0 harness is for.
+
 **One inherited hazard, now live.** The reference documents that every
 `InstancedMesh` sharing a patched material must set `instanceColor`, or the
 renderer crashes seed-dependently by draw order. We have an `onBeforeCompile`

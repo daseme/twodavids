@@ -155,6 +155,9 @@ def write_viewer(run_dir: Path) -> Path:
     core, three = _inline_three(
         vendor.joinpath("three.core.min.js").read_text(),
         vendor.joinpath("three.module.min.js").read_text())
+    # The post chain (GAP §1) is pre-wired offline by dawn/vendor/build-post.mjs
+    # into a single script that reads window.THREE and publishes window.__POST.
+    post = vendor.joinpath("post.js").read_text()
     # "</" never survives into an inline script: valid JSON either way, and the
     # deliberation texts are model-written free prose.
     payload = json.dumps(build_viewer_data(run_dir)).replace("</", "<\\/")
@@ -165,6 +168,7 @@ def write_viewer(run_dir: Path) -> Path:
     # after the vendored sources land there is a megabyte of minified JS for a
     # short placeholder to collide with.
     out.write_text(template.replace("__RUN__", html.escape(run_dir.name))
+                           .replace("__POST_JS__", post)
                            .replace("__THREE_CORE_JS__", core)
                            .replace("__THREE_MODULE_JS__", three)
                            .replace("__DATA__", payload))

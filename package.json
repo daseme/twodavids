@@ -1,7 +1,7 @@
 {
   "name": "twodavids",
   "version": "1.0.0",
-  "description": "A world-history simulator that inverts the usual causal chain of procedural worldbuilding: cultures here are self-created through mutual differentiation (schismogenesis), conscious refusal, and argument; terrain constrains and prices choices but never selects them. The primary output is a **chronicle** \u2014 generated world-histories meant to be read. There is no victory condition.",
+  "description": "A world-history simulator that inverts the usual causal chain of procedural worldbuilding: cultures here are self-created through mutual differentiation (schismogenesis), conscious refusal, and argument; terrain constrains and prices choices but never selects them. The primary output is a **chronicle** — generated world-histories meant to be read. There is no victory condition.",
   "directories": {
     "doc": "docs",
     "test": "tests"
@@ -26,7 +26,8 @@
   "devDependencies": {
     "pixelmatch": "^7.2.0",
     "playwright": "^1.61.1",
-    "pngjs": "^7.0.0"
+    "pngjs": "^7.0.0",
+    "three": "^0.178.0"
   },
   "private": true,
   "type": "module"
