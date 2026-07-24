@@ -293,6 +293,31 @@ def test_resume_continues_an_interrupted_run(tmp_path):
            == new_delibs
 
 
+def test_viewer_close_range_surfaces():
+    """Phase 3: grain earned near the lens, trees rebuilt past the paper
+    stage, water with a wet band, a breathing foam line and a glitter path —
+    all deterministic, and the terrain patch keeps the §7 rule."""
+    tpl = (Path(__file__).parent.parent / "dawn" / "viewer_template.html").read_text()
+    patch = tpl.split("terrainMat.onBeforeCompile")[1].split("const terrain =")[0]
+    # Grain fades in near the camera, never at map distance.
+    assert "cameraPosition" in patch and "smoothstep(2.0, 13.0" in patch
+    # Foam rides the shader on a vertex attribute and breathes with uFoamT.
+    assert 'setAttribute("aFoam"' in tpl and "uFoamT" in patch
+    assert "uFoamT.value = now / 1000" in tpl
+    # The wet band is painted per tick; the static foam paint is gone.
+    assert "vertWet" in tpl and "_sc1.lerp(FOAM" not in tpl
+    assert "Math.random" not in patch
+    # Trees: detail-1 main blob, per-instance squash shared by full and bare
+    # so winter thins a crown without reshaping it, boles sunk.
+    assert "ico(0.19, 1)" in tpl
+    trees = tpl.split("list.forEach((t, i) => {")[1].split("trunks.setMatrixAt")[0]
+    assert "sqx" in trees and "v.y -= 0.03" in trees
+    assert "bare, i * 16" in tpl
+    # Glitter: a high-frequency moving term breaks the specular into sparkle.
+    water = tpl.split("function updateWater(")[1]
+    assert "13.7 + t * 7.0" in water
+
+
 def test_viewer_directed_moves_are_flown_not_sprung():
     """A beat shot must be one planned path — focus, distance and pitch on a
     single clock — with long moves still cutting and the viewer's hand
@@ -369,7 +394,7 @@ def test_viewer_reality_pass_scale_cues():
     assert "instanceColor" in sc
     # Cloud shadows drape via the terrain shader, safe per the §7 rule.
     assert "terrainMat.onBeforeCompile" in tpl
-    shad = tpl.split("terrainMat.onBeforeCompile")[1].split("};")[0]
+    shad = tpl.split("terrainMat.onBeforeCompile")[1].split("const terrain =")[0]
     assert "uShad" in shad and "smoothstep" in shad
     assert "Vector4(0, 0, 1, 0)" in tpl, "radius 1: smoothstep never divides by 0"
     follow = tpl.split("// The cast shadows follow their sprites")[1]

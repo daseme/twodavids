@@ -251,6 +251,27 @@ ratchet's plan view, which is the point of it. Still to come from the
 list: phase 3 (close-range ground grain, tree rebuild, water's wet band
 and glitter) and phase 4 (contact shadows).
 
+**The reality pass, phase 3 (2026-07-23).** Close range stopped being
+plastic. The ground now carries fragment-level grain, faded in by distance
+(2–13 world units) so the painted fields still carry the map while the
+walker's ground has a texture — the fifth ANNALS technique, refused while
+the ground had no other variation and earned the day wander measured the
+flatness. The foam line moved from paint to shader: the vertices hand
+their band up as an attribute and it breathes on `uFoamT`, brightening
+travelling slowly along the shore; above it a damp band (darker ground by
+the waterline, painted per tick) says the water was higher this morning.
+The water's normals gained a high-frequency moving term that breaks the
+specular into a glitter path rather than one featureless highlight. The
+trees were rebuilt past the paper stage: a fourth blob on the broadleaf
+crown with the main blob at detail-1 facets (the offsets stay coarse —
+close-up is where the wander fade steps in, so the triangles buy
+silhouette at map range, where they are seen), a fourth tier on the pine,
+per-instance squash shared by the full and bare matrices so winter thins a
+crown without reshaping it, and boles sunk 0.03 so a tree is planted, not
+placed. Phase 4 is deferred, honestly: `shadow.radius` is a no-op under
+PCFSoft, VSM can bleed light through hills, and we verify by driver — an
+unverifiable shadow-model swap is not a change, it is a hope.*
+
 ## 0. The architecture in one sentence
 
 Because the sim is deterministic and journal-replayable, the viewer is a
