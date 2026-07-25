@@ -307,9 +307,12 @@ def test_viewer_close_range_surfaces():
     # The wet band is painted per tick; the static foam paint is gone.
     assert "vertWet" in tpl and "_sc1.lerp(FOAM" not in tpl
     assert "Math.random" not in patch
-    # Trees: detail-1 main blob, per-instance squash shared by full and bare
-    # so winter thins a crown without reshaping it, boles sunk.
-    assert "ico(0.19, 1)" in tpl
+    # Trees: detail-1 main blob with sphere normals (lobe — the low-poly
+    # silhouette lit as a mass, not facet-to-facet), per-instance squash
+    # shared by full and bare so winter thins a crown without reshaping it,
+    # boles sunk.
+    assert "lobe(0.19, 1)" in tpl
+    assert "n.setXYZ(i, x / l, y / l, z / l)" in tpl
     trees = tpl.split("list.forEach((t, i) => {")[1].split("trunks.setMatrixAt")[0]
     assert "sqx" in trees and "v.y -= 0.03" in trees
     assert "bare, i * 16" in tpl
