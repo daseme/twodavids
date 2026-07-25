@@ -179,6 +179,18 @@ comparison set adds, cheapest first:
   paint under canopies and structures the way the hollow-occlusion bake
   already darkens hollows. This grounds every object in the frame; its
   absence is half of why things look placed rather than planted.
+
+  **Built (2026-07-25), with the crowns rebuilt in the same pass.** A
+  `vertAO` field bakes a soft pool under every planted tree (smoothstep
+  falloff by crown reach), multiplied into the per-tick repaint beside
+  mottle and hillshade so seasons, wear and snow inherit it; moving
+  structures stay the wear field's business. Landed together with the
+  answer to "why does it read as 1995": the crown lobes keep their
+  icosahedron silhouettes but take a sphere's *normals* (`lobe()`), so
+  twenty faces catch light as a billowing mass instead of snapping
+  facet-to-facet — same triangle count, different decade. Bushes and
+  saplings follow; stones keep their facets, a rock's facets being the
+  point. Sun shafts remain open below.
 - **Sun shafts** at dawn and dusk through the wood: a few camera-facing
   shaft sprites near the sun's azimuth, gated by dayness and forest
   density. The cheapest drama there is, and dawn is already our opening

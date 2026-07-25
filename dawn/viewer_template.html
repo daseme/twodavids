@@ -1417,7 +1417,7 @@ function paintGround(tick) {
       _sc2.copy(_sc1).multiplyScalar(0.55);
       _sc1.lerp(_sc2, Math.min(0.4, we * 0.45));
     }
-    const k = vertMottle[i] * vertGrain[i] * hillshade[i];
+    const k = vertMottle[i] * vertGrain[i] * hillshade[i] * vertAO[i];
     col.setXYZ(i, _sc1.r * k, _sc1.g * k, _sc1.b * k);
   }
   col.needsUpdate = true;
@@ -2225,6 +2225,21 @@ function gradeCanopy(geo, lo, hi) {
   return geo;
 }
 const ico = (r, d) => new THREE.IcosahedronGeometry(r, d);
+// A crown lobe: the icosahedron's low-poly silhouette with a sphere's
+// normals. Flat facets that snap the light face-to-face are most of what
+// reads as 1995; with smooth normals the same twenty faces take light as a
+// billowing mass, and the silhouette stays hand-carved. Stones keep ico() —
+// a rock's facets are the point.
+const lobe = (r, d) => {
+  const g = ico(r, d);
+  const p = g.attributes.position, n = g.attributes.normal;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const l = Math.hypot(x, y, z) || 1;
+    n.setXYZ(i, x / l, y / l, z / l);
+  }
+  return g;
+};
 const TRUNK = {
   broad: mergeParts([{g: cyl(0.028, 0.045, 0.30, 5), c: C.woodD, p: [0, 0.15, 0]}]),
   pine:  mergeParts([{g: cyl(0.022, 0.040, 0.24, 5), c: C.woodD, p: [0, 0.12, 0]}]),
@@ -2236,10 +2251,11 @@ const TRUNK = {
 // silhouette at map range, where they are actually seen.
 const CANOPY = {
   broad: gradeCanopy(mergeParts([
-    {g: ico(0.19, 1), c: [1, 1, 1], p: [0, 0.42, 0]},
-    {g: ico(0.135, 0), c: [1, 1, 1], p: [0.10, 0.33, 0.05], s: [1, 0.85, 1]},
-    {g: ico(0.12, 0), c: [1, 1, 1], p: [-0.08, 0.36, -0.07]},
-    {g: ico(0.09, 0), c: [1, 1, 1], p: [0.02, 0.52, -0.04]},
+    {g: lobe(0.19, 1), c: [1, 1, 1], p: [0, 0.42, 0]},
+    {g: lobe(0.135, 1), c: [1, 1, 1], p: [0.10, 0.33, 0.05], s: [1, 0.85, 1]},
+    {g: lobe(0.12, 1), c: [1, 1, 1], p: [-0.08, 0.36, -0.07]},
+    {g: lobe(0.09, 1), c: [1, 1, 1], p: [0.02, 0.52, -0.04]},
+    {g: lobe(0.075, 1), c: [1, 1, 1], p: [-0.05, 0.28, 0.09], s: [1, 0.8, 1]},
   ]), 0.72, 1.16),
   pine: gradeCanopy(mergeParts([
     {g: cone(0.175, 0.24, 7), c: [1, 1, 1], p: [0, 0.26, 0]},
@@ -2365,6 +2381,34 @@ function plantForest() {
 // and the wind sound together.
 const WIND = {uT: {value: 0}, uG: {value: 0.02}};
 plantForest();
+
+// Contact AO, baked (GAP §4). The terrain knows where every tree stands, so
+// the ground darkens in a soft pool under each one — multiplied into the
+// per-tick repaint beside mottle and hillshade, so seasons, wear and snow
+// all inherit it. Its absence was half of why things looked placed rather
+// than planted: an object with no darkness at its feet is hovering, however
+// good its shadow. Structures move with the record and are left to the wear
+// field; trees are the static population, and theirs bakes once.
+const vertAO = new Float32Array(pos.count).fill(1);
+for (const kind of ["broad", "pine"]) {
+  const f = forest[kind];
+  if (!f) continue;
+  for (const t of f.pts) {
+    const R = 0.30 * t.s;                       // crown reach, grid units
+    const cx = t.x * SUB, cy = t.y * SUB, span = Math.ceil(R * SUB);
+    const vx0 = Math.max(0, Math.round(cx) - span),
+          vx1 = Math.min(RES - 1, Math.round(cx) + span);
+    const vy0 = Math.max(0, Math.round(cy) - span),
+          vy1 = Math.min(RES - 1, Math.round(cy) + span);
+    for (let vy = vy0; vy <= vy1; vy++) for (let vx = vx0; vx <= vx1; vx++) {
+      const d = Math.hypot(vx - cx, vy - cy) / SUB;
+      if (d >= R) continue;
+      const u = 1 - d / R, fall = u * u * (3 - 2 * u);
+      const i = vy * RES + vx;
+      vertAO[i] = Math.min(vertAO[i], 1 - 0.32 * fall);
+    }
+  }
+}
 
 // A walker's relationship with the wood: trunks are solid, and a canopy you
 // are about to wear steps aside. The trees were authored for 800 m away;
@@ -2513,9 +2557,9 @@ const groundCover = {season: -1, layers: [], seedheads: null, snowdust: null};
     {g: plane(0.125, 0.11), c: [1, 1, 1], p: [0, 0.052, 0], r: [-0.07, Math.PI / 2, 0]},
   ]), 0.62, 1.22);
   const BUSH = gradeCanopy(mergeParts([
-    {g: ico(0.075, 0), c: [1, 1, 1], p: [0, 0.058, 0], s: [1, 0.8, 1]},
-    {g: ico(0.055, 0), c: [1, 1, 1], p: [0.05, 0.046, 0.03], s: [1, 0.75, 1]},
-    {g: ico(0.05, 0), c: [1, 1, 1], p: [-0.045, 0.05, -0.03]},
+    {g: lobe(0.075, 1), c: [1, 1, 1], p: [0, 0.058, 0], s: [1, 0.8, 1]},
+    {g: lobe(0.055, 1), c: [1, 1, 1], p: [0.05, 0.046, 0.03], s: [1, 0.75, 1]},
+    {g: lobe(0.05, 1), c: [1, 1, 1], p: [-0.045, 0.05, -0.03]},
   ]), 0.62, 1.12);
   // Three cards splayed at thirds: the droop is in the lean, and the ramp is
   // stronger because a fern is mostly its own shadow.
@@ -2524,7 +2568,7 @@ const groundCover = {season: -1, layers: [], seedheads: null, snowdust: null};
      r: [0.55, k * 2.094, 0]}))), 0.52, 1.12);
   const SAPLING = gradeCanopy(mergeParts([
     {g: cyl(0.006, 0.011, 0.10, 4), c: C.woodD, p: [0, 0.05, 0]},
-    {g: ico(0.05, 0), c: [1, 1, 1], p: [0, 0.135, 0], s: [1, 1.15, 1]},
+    {g: lobe(0.05, 1), c: [1, 1, 1], p: [0, 0.135, 0], s: [1, 1.15, 1]},
   ]), 0.78, 1.10);
 
   // Placement, seeded like everything invented here. Densities are per cell
