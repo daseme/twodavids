@@ -132,6 +132,27 @@ Discipline holds: placement is biome- and moisture-driven from fields we
 already compute; nothing here contradicts the record, and no agriculture
 (§7's refusal stands — no rotated fields, no crop strips, ever).
 
+**Built (2026-07-24).** Four instanced layers and two speck systems, all
+seeded, all one draw call each: ~8,600 grass tufts (crossed cards, vertical
+colour ramp, moisture-graded height and greenness, clump-noise drifts),
+~350 wood-edge bushes, ~400 wet-ground ferns, ~40 saplings, plus seed-head
+points over the summer/autumn meadows and snow-dust on the winter
+understory. Sway rides the trees' own WIND patch with a per-layer gain and
+a flutter term; seasons swap per-instance colour arrays like the canopies
+do, and winter squashes the soft layers. Placement learned three rules the
+hard way, all found by the §0 harness: slope must be measured on the
+*coarse* heights (the fine surface repeats the scree mistake — grass now
+yields only where the rock paint actually dominates); historically lived
+cells thin the grass rather than erase it (hard exclusion pockmarked the
+map with bald circles the record never asserted); and under canopy the
+floor paint is lit-crown green, so forest grass shades toward understory
+dark or it renders invisibly against its own floor. A backlit Lambert card
+goes black at dawn, so the cover carries a whisper of emissive as
+translucency. Wander now inherits the orbit's gaze pitch — the mode built
+to stand in the bottom storey no longer stares over it — and the driver
+grew `groundNear`/`surfaceY`/`groundFlash` probes, which is how every one
+of the above was diagnosed without guessing twice.
+
 ## 3. The water's edge
 
 The hardest edge left in the frame. Pros spend disproportionately on

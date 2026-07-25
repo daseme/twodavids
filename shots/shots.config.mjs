@@ -23,9 +23,9 @@ export const SHOTS = [
   // The one real wood on this map is a diagonal band from (9,38) up to
   // (11,33); the look is solved backwards so the walker starts at its
   // south-west end, at (9, 37.5), heading up the band under the trees.
-  {name: "wood-walk", hash: "#t=616", look: [10.7, 34.1, 4, 0.3, 2.03],
+  {name: "wood-walk", hash: "#t=616", look: [10.7, 34.1, 4, 0.55, 2.03],
    pre: ["wander"], steps: 120,
-   note: "eye height in the trees at noon — the fade and collision shot"},
+   note: "eye height in the trees at noon — the fade, collision and floor shot"},
   {name: "night-hearths", hash: "#t=24", pre: ["legend-first"], steps: 260,
    note: "tick % 32 == 24 is full dark; the flight to a hearth lands"},
   {name: "storm", hash: "#t=8", pre: ["storm-seek"], look: [24, 24, 18, 0.5],

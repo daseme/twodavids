@@ -2253,14 +2253,13 @@ const CANOPY = {
 // run rather than read at one tick, so a camp that moves in year 300 is not
 // found standing in a thicket — and the clearing is the one place vegetation
 // touches the record at all, by staying out of its way.
-function clearedCells() {
+function clearedCells(r = 2) {
   const cleared = new Set();
   for (const s of sums) {
     for (const cid of Object.keys(s.c)) {
       const site = sitesOf(+cid, s.tick);
       if (!site || !site.anchor) continue;
       const [ax, ay] = site.anchor;
-      const r = 2;
       for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++)
         if (dx * dx + dy * dy <= r * r)
           cleared.add(((ax + dx) | 0) * 1000 + ((ay + dy) | 0));
@@ -2489,6 +2488,285 @@ const SCATTER = {stones: 0, scrub: 0};
   lay(ico(0.06, 0), stones, 0.55, [0.55, 0.52, 0.47]);
   lay(cone(0.05, 0.11, 4).translate(0, 0.055, 0), scrub, 0.8, [0.42, 0.46, 0.27]);
   SCATTER.stones = stones.length; SCATTER.scrub = scrub.length;
+}
+
+// ---- ground cover: grass, understory, specks (GAP §2) -----------------------
+// The missing bottom layer. Canopy trees over painted ground left the world
+// bald between its trees — no middle storey, no bottom storey, nothing that
+// moves at ankle height. Grass fills the bottom third of every wander frame;
+// bushes make a wood's edge an edge; ferns say wet ground; specks read at
+// exactly the distance grass stops reading. All of it is elaboration of the
+// record's silence (§0): placement is driven by fields the record already
+// prices — biome, distance to water, the forest field — it stays out of the
+// clearings people live in, and there is no agriculture in it (GAP §7's
+// refusal stands: a meadow, never a field).
+const GROUND = {grass: 0, bush: 0, fern: 0, sapling: 0,
+                cells: {land: 0, river: 0, cleared: 0, steep: 0, planted: 0}};
+const groundCover = {season: -1, layers: [], seedheads: null, snowdust: null};
+{
+  const plane = (w, h) => new THREE.PlaneGeometry(w, h);
+  // Two crossed cards, leaned apart so the silhouette breaks; the vertical
+  // ramp does for a tuft what gradeCanopy does for a crown — lit tips over
+  // shadowed roots, mass instead of paper.
+  const TUFT = gradeCanopy(mergeParts([
+    {g: plane(0.125, 0.11), c: [1, 1, 1], p: [0, 0.052, 0], r: [0.10, 0, 0]},
+    {g: plane(0.125, 0.11), c: [1, 1, 1], p: [0, 0.052, 0], r: [-0.07, Math.PI / 2, 0]},
+  ]), 0.62, 1.22);
+  const BUSH = gradeCanopy(mergeParts([
+    {g: ico(0.075, 0), c: [1, 1, 1], p: [0, 0.058, 0], s: [1, 0.8, 1]},
+    {g: ico(0.055, 0), c: [1, 1, 1], p: [0.05, 0.046, 0.03], s: [1, 0.75, 1]},
+    {g: ico(0.05, 0), c: [1, 1, 1], p: [-0.045, 0.05, -0.03]},
+  ]), 0.62, 1.12);
+  // Three cards splayed at thirds: the droop is in the lean, and the ramp is
+  // stronger because a fern is mostly its own shadow.
+  const FERN = gradeCanopy(mergeParts([0, 1, 2].map(k => (
+    {g: plane(0.085, 0.12), c: [1, 1, 1], p: [0, 0.05, 0],
+     r: [0.55, k * 2.094, 0]}))), 0.52, 1.12);
+  const SAPLING = gradeCanopy(mergeParts([
+    {g: cyl(0.006, 0.011, 0.10, 4), c: C.woodD, p: [0, 0.05, 0]},
+    {g: ico(0.05, 0), c: [1, 1, 1], p: [0, 0.135, 0], s: [1, 1.15, 1]},
+  ]), 0.78, 1.10);
+
+  // Placement, seeded like everything invented here. Densities are per cell
+  // by biome — the same table the trees read, at one storey down: meadows
+  // and shores get the cover, the wood floor gets a sparse dappled layer,
+  // rock and desert get almost nothing.
+  const GRASS_D = [11, 4, 20, 13, 2.2, 0.5];   // steppe, forest, valley, coast, mountain, desert
+  const riverCell = new Set();
+  for (const [x1, y1, x2, y2] of DATA.rivers) {
+    riverCell.add(x1 * 1000 + y1); riverCell.add(x2 * 1000 + y2);
+  }
+  // Two clearings, two memories. Woody growth honours the full historical
+  // clearing (a thicket does not stand where a camp ever was — same rule as
+  // the trees); grass and ferns only avoid the tight core, because grass
+  // grows back: a campsite abandoned five hundred years ago is a meadow,
+  // and painting it bare would assert a scar the record does not.
+  const clearedWoody = clearedCells();
+  const clearedSoft = clearedCells(1);
+  const cl = v => Math.max(0, Math.min(G - 1, v));
+  // A "wood" for edge purposes is anywhere trees stand thick — the pine
+  // slopes count, not just the broadleaf biome, or the mountain woods get
+  // no understory at all.
+  const woodAt = (x, y) => (VEG_BY_INDEX[DATA.biome[x][y]] || [0])[0] >= 1.8;
+  const grass = [], bush = [], fern = [], sapling = [];
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
+    if (DATA.water[x][y] || heightAt(x, y) < 0.05) continue;
+    GROUND.cells.land++;
+    if (riverCell.has(x * 1000 + y)) { GROUND.cells.river++; continue; }
+    // Lived ground thins the grass, it does not erase it: a hard exclusion
+    // pockmarked the map with bald circles wherever any camp had ever
+    // stood — permanent scars the record never asserted. The per-tick wear
+    // paint carries "someone lives here now"; the meadow carries on.
+    const lived = clearedSoft.has(x * 1000 + y);
+    if (lived) GROUND.cells.cleared++;
+    const woodyOK = !clearedWoody.has(x * 1000 + y);
+    // Landform steepness from the coarse heights, the same measure the rock
+    // paint reads (grad 1.0 ≈ 45°) — the fine surface is locally steep
+    // everywhere by construction, and gating on it repeats the scree
+    // mistake documented above at the slope bake. Grass yields only where
+    // the rock paint actually dominates (≈ grad 1.6), thinning on the way;
+    // the understory follows the trees, which climb what they like.
+    const grad = Math.hypot(
+      bilinear(cellH, x + 0.5, y) - bilinear(cellH, x - 0.5, y),
+      bilinear(cellH, x, y + 0.5) - bilinear(cellH, x, y - 0.5));
+    const rocky = grad > 1.5;
+    if (rocky) GROUND.cells.steep++; else GROUND.cells.planted++;
+    const slopeThin = 1 - 0.6 * Math.min(1, Math.max(0, (grad - 0.9) / 0.6));
+    const biome = DATA.biome[x][y];
+    if (biome === 4 && DATA.elevation[x][y] > 650) continue;   // above the grass line
+    // Moisture from the record's own geometry: taller, denser, greener cover
+    // toward water, straw toward the dry interior.
+    const m = 1 - Math.min(1, Math.max(0, (distWater[x][y] - 1) / 6));
+    // Clumped, not sprinkled: a meadow is drifts of grass with breath
+    // between them, and the drift lives at a lower frequency than the cell.
+    const clump = 0.35 + 1.3 * fbm(x * 0.55, y * 0.55, NSEED + 8050);
+    const d = rocky ? 0 : GRASS_D[biome] * (0.55 + 0.75 * m) * slopeThin * clump
+                        * (lived ? 0.3 : 1);
+    const whole = Math.floor(d);
+    const n = whole + (hash2(x, y, NSEED + 8101) < d - whole ? 1 : 0);
+    for (let i = 0; i < n; i++) {
+      const h1 = hash2(x * 3 + i, y * 17 + i, NSEED + 8211 + i);
+      const h2 = hash2(x * 13 + i * 7, y * 5 + i, NSEED + 8307 + i);
+      const h3 = hash2(x + i * 23, y + i * 11, NSEED + 8401 + i);
+      grass.push({x: x + (h1 - 0.5) * 0.95, y: y + (h2 - 0.5) * 0.95,
+                  s: (0.6 + h3 * 0.8) * (0.72 + 0.55 * m), rot: h1 * 6.283, m,
+                  f: bilinear(forestGrid, x, y)});
+    }
+    // Understory. A wood's edge is where the light is: bushes sit on cells
+    // that touch a wood without being it, saplings and ferns inside.
+    const nearWood = !woodAt(x, y) &&
+      (woodAt(cl(x + 1), y) || woodAt(cl(x - 1), y) ||
+       woodAt(x, cl(y + 1)) || woodAt(x, cl(y - 1)));
+    const bushD = nearWood ? 1.6 : (woodAt(x, y) ? 0.5 : biome === 2 ? 0.3 : 0);
+    if (woodyOK && hash2(x, y, NSEED + 8501) < bushD) {
+      const k = 1 + (hash2(x, y, NSEED + 8502) < bushD - 1 ? 1 : 0);
+      for (let i = 0; i < k; i++) {
+        const h1 = hash2(x * 7 + i, y * 3 + i, NSEED + 8513 + i);
+        const h2 = hash2(x * 5 + i, y * 19 + i, NSEED + 8607 + i);
+        bush.push({x: x + (h1 - 0.5) * 0.9, y: y + (h2 - 0.5) * 0.9,
+                   s: 0.7 + h1 * 0.8, rot: h2 * 6.283, m});
+      }
+    }
+    if (woodyOK && woodAt(x, y) && hash2(x, y, NSEED + 8701) < 0.5) {
+      const h1 = hash2(x * 11, y * 7, NSEED + 8703);
+      sapling.push({x: x + (h1 - 0.5) * 0.9,
+                    y: y + (hash2(x, y, NSEED + 8704) - 0.5) * 0.9,
+                    s: 0.7 + h1 * 0.7, rot: h1 * 6.283, m});
+    }
+    if ((biome === 1 || biome === 2) && distWater[x][y] < 3) {
+      const fd = 0.4 + 1.6 * m;
+      const fn = Math.floor(fd) + (hash2(x, y, NSEED + 8801) < fd % 1 ? 1 : 0);
+      for (let i = 0; i < fn; i++) {
+        const h1 = hash2(x * 9 + i, y * 13 + i, NSEED + 8811 + i);
+        const h2 = hash2(x * 17 + i, y * 7 + i, NSEED + 8907 + i);
+        fern.push({x: x + (h1 - 0.5) * 0.9, y: y + (h2 - 0.5) * 0.9,
+                   s: 0.65 + h2 * 0.7, rot: h1 * 6.283, m});
+      }
+    }
+  }
+
+  // Seasonal palettes, authored as hex through THREE.Color (the colour-space
+  // rule above), mixed in working space, only then written to the buffers.
+  // Brighter than instinct says: a vertical card catches half the sun the
+  // ground under it does, so a tuft authored at the terrain's own value
+  // renders as litter — the palette compensates for the geometry.
+  const hx = h => new THREE.Color(h);
+  const GRASS_S = [0x9cc468, 0x8ab558, 0xc9ad62, 0xa89b78].map(hx);
+  const GRASS_WET = hx(0x639e4c);
+  const GRASS_SHADE = hx(0x2f4a28);
+  const FERN_S = [0x559552, 0x48894e, 0xa08344, 0x807b64].map(hx);
+  const _c = new THREE.Color();
+  // Under canopy the floor paint is the lit-crown green, and a meadow-bright
+  // tuft disappears into it — found by the harness's close-up, where 37
+  // placed tufts rendered invisibly at frame centre. Forest grass shades
+  // toward understory dark instead: contrast against the floor it stands on,
+  // not against the meadow it isn't in.
+  const grassPal = (season, t, out) =>
+    out.copy(GRASS_S[season]).lerp(GRASS_WET, t.m * 0.45)
+       .lerp(GRASS_SHADE, (t.f || 0) * 0.35);
+  const fernPal = (season, t, out) => out.copy(FERN_S[season]);
+  const leafPal = mul => (season, t, out) => {
+    const b = LEAF.broad[season];
+    out.setRGB(b[0] * mul, b[1] * mul, b[2] * mul);
+  };
+
+  // One builder for the four layers: the §7 instancing hazard is respected —
+  // each patched material is used by exactly one InstancedMesh, and every
+  // mesh sets instanceColor. The sway is the trees' own patch with a gain,
+  // plus a flutter term: a blade turns in wind a bough only leans into.
+  const v = new THREE.Vector3(), q = new THREE.Quaternion(), sc = new THREE.Vector3(),
+        e = new THREE.Euler(), m4 = new THREE.Matrix4();
+  function coverLayer(geo, list, pal, gain, wSquash) {
+    if (!list.length) return null;
+    // The whisper of emissive is translucency, not glow: a backlit blade
+    // transmits light where a Lambert card goes black, and dawn was turning
+    // every meadow into dark confetti without it.
+    const mat = new THREE.MeshLambertMaterial(
+      {color: 0xffffff, vertexColors: true, side: THREE.DoubleSide,
+       emissive: 0x161e0d, emissiveIntensity: 0.55});
+    mat.onBeforeCompile = sh => {
+      sh.uniforms.uWindT = WIND.uT; sh.uniforms.uWindG = WIND.uG;
+      sh.vertexShader = "uniform float uWindT; uniform float uWindG;\n" +
+        sh.vertexShader.replace("#include <begin_vertex>",
+          `#include <begin_vertex>
+           {
+             float wph = instanceMatrix[3][0] * 2.1 + instanceMatrix[3][2] * 2.9;
+             float wsw = sin(uWindT * 1.9 + wph) + 0.5 * sin(uWindT * 3.7 + wph * 1.3)
+                       + 0.35 * sin(uWindT * 6.1 + wph * 3.1);
+             float lift = max(0.0, position.y);
+             transformed.x += wsw * uWindG * lift * ${gain.toFixed(1)};
+             transformed.z += wsw * 0.6 * uWindG * lift * ${gain.toFixed(1)};
+           }`);
+    };
+    const mesh = new THREE.InstancedMesh(geo, mat, list.length);
+    const full = new Float32Array(list.length * 16);
+    const wint = wSquash < 1 ? new Float32Array(list.length * 16) : null;
+    list.forEach((t, i) => {
+      toWorld(t.x, t.y, v); v.y -= 0.006;
+      e.set(0, t.rot, 0); q.setFromEuler(e);
+      sc.set(t.s, t.s, t.s); m4.compose(v, q, sc); m4.toArray(full, i * 16);
+      if (wint) {
+        sc.set(t.s, t.s * wSquash, t.s);
+        m4.compose(v, q, sc); m4.toArray(wint, i * 16);
+      }
+      mesh.setMatrixAt(i, new THREE.Matrix4().fromArray(full, i * 16));
+    });
+    const cols = [0, 1, 2, 3].map(season => {
+      const arr = new Float32Array(list.length * 3);
+      list.forEach((t, i) => {
+        pal(season, t, _c);
+        const j = 0.85 + hash2((t.x * 64) | 0, (t.y * 64) | 0, NSEED + 8990) * 0.42;
+        arr[i * 3] = Math.min(1, _c.r * j);
+        arr[i * 3 + 1] = Math.min(1, _c.g * j);
+        arr[i * 3 + 2] = Math.min(1, _c.b * j);
+      });
+      return arr;
+    });
+    mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cols[0]), 3);
+    mesh.receiveShadow = true; mesh.frustumCulled = false;
+    scene.add(mesh);
+    groundCover.layers.push({mesh, cols, full, wint});
+    return mesh;
+  }
+  coverLayer(TUFT, grass, grassPal, 5.0, 0.72);
+  coverLayer(BUSH, bush, leafPal(0.85), 1.2, 1);
+  coverLayer(FERN, fern, fernPal, 3.0, 0.55);
+  coverLayer(SAPLING, sapling, leafPal(1.0), 2.0, 1);
+  GROUND.grass = grass.length; GROUND.bush = bush.length;
+  GROUND.fern = fern.length; GROUND.sapling = sapling.length;
+
+  // Specks (§2): seed-heads over the summer and autumn meadows, snow-dust on
+  // the winter understory — unlit points, one draw call each, reading at
+  // exactly the distance the tufts below them stop.
+  const heads = grass.filter((t, i) =>
+    t.m < 0.85 && hash2(i, 1, NSEED + 9101) < 0.16);
+  const hxyz = new Float32Array(heads.length * 3);
+  heads.forEach((t, i) => {
+    toWorld(t.x, t.y, v);
+    hxyz[i * 3] = v.x; hxyz[i * 3 + 1] = v.y + 0.135 * t.s + 0.012;
+    hxyz[i * 3 + 2] = v.z;
+  });
+  const headGeo = new THREE.BufferGeometry();
+  headGeo.setAttribute("position", new THREE.BufferAttribute(hxyz, 3));
+  groundCover.seedheads = new THREE.Points(headGeo, new THREE.PointsMaterial(
+    {color: 0xd9cfa0, size: 0.028, sizeAttenuation: true,
+     transparent: true, opacity: 0, depthWrite: false}));
+  groundCover.seedheads.visible = false;
+  scene.add(groundCover.seedheads);
+  const dust = bush.filter((t, i) => hash2(i, 2, NSEED + 9201) < 0.6);
+  const dxyz = new Float32Array(dust.length * 3);
+  dust.forEach((t, i) => {
+    toWorld(t.x, t.y, v);
+    dxyz[i * 3] = v.x; dxyz[i * 3 + 1] = v.y + 0.085 * t.s + 0.01;
+    dxyz[i * 3 + 2] = v.z;
+  });
+  const dustGeo = new THREE.BufferGeometry();
+  dustGeo.setAttribute("position", new THREE.BufferAttribute(dxyz, 3));
+  groundCover.snowdust = new THREE.Points(dustGeo, new THREE.PointsMaterial(
+    {color: 0xeef2f8, size: 0.03, sizeAttenuation: true,
+     transparent: true, opacity: 0, depthWrite: false}));
+  groundCover.snowdust.visible = false;
+  scene.add(groundCover.snowdust);
+}
+
+function updateGroundCover(tick) {
+  const season = tick % 4;
+  const sh = groundCover.seedheads, sd = groundCover.snowdust;
+  sh.material.opacity = season === 1 ? 0.4 : season === 2 ? 0.75 : 0;
+  sh.visible = sh.material.opacity > 0.01;
+  const sev = winterSeverity(tick);
+  sd.material.opacity = season === 3 ? 0.3 + 0.6 * sev : 0;
+  sd.visible = sd.material.opacity > 0.01;
+  if (season === groundCover.season) return;
+  groundCover.season = season;
+  for (const l of groundCover.layers) {
+    l.mesh.instanceColor.array.set(l.cols[season]);
+    l.mesh.instanceColor.needsUpdate = true;
+    if (l.wint) {
+      l.mesh.instanceMatrix.array.set(season === 3 ? l.wint : l.full);
+      l.mesh.instanceMatrix.needsUpdate = true;
+    }
+  }
 }
 
 // ---- LOD bubble band (§2): people are statistics until the camera is close --
@@ -2842,8 +3120,12 @@ function setWander(on) {
   walkKeys.clear();
   if (on) {
     const dir = v3.copy(cam.fTarget).sub(camera.position);
+    // The gaze carries over: entering the walk from an orbit that looked
+    // down keeps looking down — flattening it to the horizon hid the whole
+    // bottom storey (GAP §2) from the one mode built to stand in it.
     wander = {x: camera.position.x, z: camera.position.z,
-              heading: Math.atan2(dir.z, dir.x), pitch: 0, speed: 1.6,
+              heading: Math.atan2(dir.z, dir.x),
+              pitch: Math.min(0.5, Math.max(0, cam.pitch * 0.45)), speed: 1.6,
               y: Math.max(0.02, heightField(camera.position.x + G / 2,
                                             camera.position.z + G / 2)) + 0.55};
   } else {
@@ -3400,7 +3682,10 @@ function setTick(t, hard) {
     if (playing && prevEra >= 0) eraCard(era, tick);
   }
   if (hard) { seekBeats(tick); beatCool = 0; }
-  if (tick !== lastPaint) { paintGround(tick); updateForest(tick); lastPaint = tick; }
+  if (tick !== lastPaint) {
+    paintGround(tick); updateForest(tick); updateGroundCover(tick);
+    lastPaint = tick;
+  }
   if (Math.floor(tick / 20) !== lastLegend) {
     drawLegend(tick); lastLegend = Math.floor(tick / 20);
     if (dossierCid !== null) showDossier(dossierCid, tick);
@@ -3641,12 +3926,38 @@ window.__dawn = {
                   fires: firePool.filter(g => g.visible).length,
                   clouds: clouds.children.length,
                   scatter: SCATTER.stones + SCATTER.scrub,
+                  ground: {...GROUND},
                   faded: fadedTrees.size,
                   birds: flocks.reduce((n, f) => n + (f.pts.visible ? 1 : 0), 0),
                   glows: [...groups.values()].reduce((n, g) => n +
                     [...g.slots.values()].filter(s => s.glow && s.mesh.visible).length, 0),
                   smoke: smokePuffs.filter(s => s.visible).length,
                   people: peopleGroups.size}),
+  // Ground cover within r of a world position, per layer — how a driver
+  // checks a "bald patch" complaint without an eye (GAP §2).
+  groundNear: (wx, wz, r = 3, dump) => groundCover.layers.map(l => {
+    let n = 0; const pts = [];
+    const a = l.mesh.instanceMatrix.array;
+    for (let i = 0; i < l.mesh.count; i++)
+      if (Math.hypot(a[i * 16 + 12] - wx, a[i * 16 + 14] - wz) < r) {
+        n++;
+        if (dump && pts.length < 8)
+          pts.push([+a[i * 16 + 12].toFixed(2), +a[i * 16 + 13].toFixed(3),
+                    +a[i * 16 + 14].toFixed(2)]);
+      }
+    return dump ? {n, pts} : n;
+  }),
+  // The rendered surface at a world position — for checking that a placed
+  // thing actually stands on the ground it was placed for.
+  surfaceY: (wx, wz) => +heightField(wx + G / 2, wz + G / 2).toFixed(3),
+  // Diagnostic flash: paint a cover layer loud and depth-free, the red-fill
+  // trick from the river lesson (VIEWER.md §7) as a callable.
+  groundFlash: (li = 0) => {
+    const l = groundCover.layers[li];
+    l.mesh.material.color.set(0xff2020);
+    l.mesh.material.depthTest = false;
+    l.mesh.material.needsUpdate = true;
+  },
   // Storm strength at the current tick (0 outside recorded hard winters),
   // and whether the walk mode is on — the two new modes, checkable.
   snow: () => +winterSeverity(curTick).toFixed(3),
