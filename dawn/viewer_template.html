@@ -2278,15 +2278,30 @@ const LEAF = {
 };
 
 // A canopy is lit from above by its own vertex colours, so even a flat instance
-// colour reads as a rounded mass rather than a paper cut-out.
-function gradeCanopy(geo, lo, hi) {
+// colour reads as a rounded mass rather than a paper cut-out. Two baked terms:
+// a vertical ramp (lit top, shaded underside) and, where `core` asks for it,
+// an interior term — vertices near the cluster's heart darken as leaves in
+// the middle of a mass would, which is what makes a crown read as a volume
+// instead of a painted disc.
+function gradeCanopy(geo, lo, hi, core = 0) {
   geo.computeBoundingBox();
   const bb = geo.boundingBox, span = Math.max(1e-6, bb.max.y - bb.min.y);
+  const cx = (bb.min.x + bb.max.x) / 2, cy = (bb.min.y + bb.max.y) / 2,
+        cz = (bb.min.z + bb.max.z) / 2;
+  let maxD = 1e-6;
+  const p = geo.attributes.position, c = geo.attributes.color;
+  for (let i = 0; i < p.count; i++)
+    maxD = Math.max(maxD, Math.hypot(p.getX(i) - cx, p.getY(i) - cy, p.getZ(i) - cz));
   // Multiplies into whatever mergeParts already baked — the form shading is
   // underneath this, and overwriting would throw it away.
-  const p = geo.attributes.position, c = geo.attributes.color;
   for (let i = 0; i < p.count; i++) {
-    const t = (p.getY(i) - bb.min.y) / span, k = lo + (hi - lo) * (t * t * (3 - 2 * t));
+    const t = (p.getY(i) - bb.min.y) / span;
+    let k = lo + (hi - lo) * (t * t * (3 - 2 * t));
+    if (core > 0) {
+      const d = Math.hypot(p.getX(i) - cx, p.getY(i) - cy, p.getZ(i) - cz) / maxD;
+      const s = Math.max(0, Math.min(1, (d - 0.35) / 0.55));
+      k *= 1 - core * (1 - s * s * (3 - 2 * s));
+    }
     c.array[i * 3] *= k; c.array[i * 3 + 1] *= k; c.array[i * 3 + 2] *= k;
   }
   c.needsUpdate = true;
@@ -2312,25 +2327,66 @@ const TRUNK = {
   broad: mergeParts([{g: cyl(0.028, 0.045, 0.30, 5), c: C.woodD, p: [0, 0.15, 0]}]),
   pine:  mergeParts([{g: cyl(0.022, 0.040, 0.24, 5), c: C.woodD, p: [0, 0.12, 0]}]),
 };
+// The crease between two touching lobes is where a crown shows its
+// structure. The interior of a merged cluster is hidden geometry — darkening
+// it changes nothing the eye receives — so the shade is baked where it is
+// seen: each vertex knows its own lobe (mergeParts keeps part order) and
+// darkens by how deep it sits inside a *neighbour's* ellipsoid.
+function creviceShade(geo, parts, amt) {
+  const counts = parts.map(pt =>
+    pt.g.index ? pt.g.index.count : pt.g.attributes.position.count);
+  const balls = parts.map(pt => {
+    pt.g.computeBoundingSphere();
+    const s = pt.s === undefined ? [1, 1, 1]
+            : (Array.isArray(pt.s) ? pt.s : [pt.s, pt.s, pt.s]);
+    const r = pt.g.boundingSphere.radius;
+    return {c: pt.p || [0, 0, 0], r: [r * s[0], r * s[1], r * s[2]]};
+  });
+  const p = geo.attributes.position, c = geo.attributes.color;
+  let part = 0, left = counts[0];
+  for (let i = 0; i < p.count; i++, left--) {
+    while (left === 0) { part++; left = counts[part]; }
+    let occ = 0;
+    for (let j = 0; j < balls.length; j++) {
+      if (j === part) continue;
+      const b = balls[j];
+      const dn = Math.hypot((p.getX(i) - b.c[0]) / b.r[0],
+                            (p.getY(i) - b.c[1]) / b.r[1],
+                            (p.getZ(i) - b.c[2]) / b.r[2]);
+      occ = Math.max(occ, Math.min(1, Math.max(0, 1 - (dn - 0.55) / 0.7)));
+    }
+    const k = 1 - amt * occ;
+    c.array[i * 3] *= k; c.array[i * 3 + 1] *= k; c.array[i * 3 + 2] *= k;
+  }
+  c.needsUpdate = true;
+  return geo;
+}
 // Four overlapping blobs, deliberately off-centre: a canopy with one axis of
 // asymmetry stops a hillside of trees looking like a bed of identical bushes.
 // The main blob gets detail-1 facets; the offsets stay coarse — close-up is
 // where the wander fade steps in anyway, so the extra triangles buy
 // silhouette at map range, where they are actually seen.
+const BROAD_PARTS = [
+  {g: lobe(0.19, 1), c: [1, 1, 1], p: [0, 0.42, 0]},
+  {g: lobe(0.135, 1), c: [1, 1, 1], p: [0.10, 0.33, 0.05], s: [1, 0.85, 1]},
+  {g: lobe(0.12, 1), c: [1, 1, 1], p: [-0.08, 0.36, -0.07]},
+  {g: lobe(0.09, 1), c: [1, 1, 1], p: [0.02, 0.52, -0.04]},
+  {g: lobe(0.075, 1), c: [1, 1, 1], p: [-0.05, 0.28, 0.09], s: [1, 0.8, 1]},
+];
 const CANOPY = {
-  broad: gradeCanopy(mergeParts([
-    {g: lobe(0.19, 1), c: [1, 1, 1], p: [0, 0.42, 0]},
-    {g: lobe(0.135, 1), c: [1, 1, 1], p: [0.10, 0.33, 0.05], s: [1, 0.85, 1]},
-    {g: lobe(0.12, 1), c: [1, 1, 1], p: [-0.08, 0.36, -0.07]},
-    {g: lobe(0.09, 1), c: [1, 1, 1], p: [0.02, 0.52, -0.04]},
-    {g: lobe(0.075, 1), c: [1, 1, 1], p: [-0.05, 0.28, 0.09], s: [1, 0.8, 1]},
-  ]), 0.72, 1.16),
+  // The range is set against the film curve, not against 1.0: at noon the
+  // crown's lit side arrives at ACES near 2.0, deep in the shoulder, where
+  // it clips to paper and erases whatever the bake wrote. Halving once was
+  // not enough — the shoulder eats linear cuts — so the bake lands the top
+  // near 1.2 *pre-curve*, which is where green still looks like green.
+  broad: gradeCanopy(creviceShade(mergeParts(BROAD_PARTS), BROAD_PARTS, 0.55),
+                     0.30, 0.62, 0.12),
   pine: gradeCanopy(mergeParts([
     {g: cone(0.175, 0.24, 7), c: [1, 1, 1], p: [0, 0.26, 0]},
     {g: cone(0.145, 0.24, 7), c: [1, 1, 1], p: [0, 0.37, 0]},
     {g: cone(0.11, 0.21, 7), c: [1, 1, 1], p: [0, 0.48, 0]},
     {g: cone(0.07, 0.17, 7), c: [1, 1, 1], p: [0, 0.58, 0]},
-  ]), 0.66, 1.18),
+  ]), 0.28, 0.60, 0.16),
 };
 
 // Where people live, the wood is cleared. Anchors are sampled across the whole
