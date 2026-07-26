@@ -4026,6 +4026,30 @@ window.__dawn = {
   // the largest accumulation reached, and the triangles it cost. A course that
   // renders as a hairline again will show up here as maxAcc === 1.
   rivers: () => RIVER_STATS,
+  // The forest as planted: counts, scale spread, hue spread, and how much
+  // land has no tree at all — gaps carry as much information as trees, so
+  // the probe counts both.
+  trees: () => {
+    const out = {};
+    let occupied = new Set(), land = 0;
+    for (let x = 0; x < G; x++) for (let y = 0; y < G; y++)
+      if (!DATA.water[x][y]) land++;
+    for (const kind of ["broad", "pine"]) {
+      const f = forest[kind];
+      if (!f) { out[kind] = {n: 0}; continue; }
+      let lo = 1e9, hi = -1e9, sum = 0, glo = 1e9, ghi = -1e9;
+      f.pts.forEach((t, i) => {
+        lo = Math.min(lo, t.s); hi = Math.max(hi, t.s); sum += t.s;
+        const g = f.cols[0][i * 3 + 1];
+        glo = Math.min(glo, g); ghi = Math.max(ghi, g);
+        occupied.add(((t.x + 0.5) | 0) * 1000 + ((t.y + 0.5) | 0));
+      });
+      out[kind] = {n: f.n, scale: [+lo.toFixed(2), +(sum / f.n).toFixed(2), +hi.toFixed(2)],
+                   hueSpread: +(ghi - glo).toFixed(3)};
+    }
+    out.bareLandFrac = +(1 - occupied.size / land).toFixed(3);
+    return out;
+  },
   slotPos: (cid, id) => {
     const m = groups.get(String(cid))?.slots.get(id)?.mesh;
     return m && m.visible ? {x: +m.position.x.toFixed(4), z: +m.position.z.toFixed(4)} : null;
