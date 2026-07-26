@@ -535,3 +535,13 @@ diagnostic that loud does nothing, the geometry is not being drawn rather than
 being drawn wrong, and winding is the first place to look. `DoubleSide` is the
 fix; forcing the normals to `(0,1,0)` is *not*, because DoubleSide flips the
 normal on back fragments and the water goes black.
+
+**The water's edge (2026-07-26, GAP §3 — the build note lives there).** The
+shore is no longer a painted band: foam width follows the coarse shore
+slope, a second foam line laps on a per-segment phase, caustics dapple the
+first half-unit of bed, and the damp band moved from paintGround into the
+terrain shader so it can follow the water instead of the tick. The sheet's
+opacity now grades shallow-clear to deep-covered on the same field as its
+tint — the flat 0.88 was why no amount of caustic strength ever read as
+clear water. `waterMat`'s patch grew a vertex stage (aDeep) and the §7
+instancing hazard above still stands, now for two patched materials.

@@ -20,3 +20,4 @@ runs/seed-3/*
 # screenshot harness output (references in shots/ref ARE tracked)
 shots/out/
 shots/diff/
+shots/edge/

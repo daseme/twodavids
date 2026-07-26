@@ -304,7 +304,7 @@ def test_viewer_close_range_surfaces():
     # Foam rides the shader on a vertex attribute and breathes with uFoamT.
     assert 'setAttribute("aFoam"' in tpl and "uFoamT" in patch
     assert "uFoamT.value = now / 1000" in tpl
-    # The wet band is painted per tick; the static foam paint is gone.
+    # The wet band rides the shader now (§3); the static foam paint is gone.
     assert "vertWet" in tpl and "_sc1.lerp(FOAM" not in tpl
     assert "Math.random" not in patch
     # Trees: detail-1 main blob with sphere normals (lobe — the low-poly
@@ -319,6 +319,31 @@ def test_viewer_close_range_surfaces():
     # Glitter: a high-frequency moving term breaks the specular into sparkle.
     water = tpl.split("function updateWater(")[1]
     assert "13.7 + t * 7.0" in water
+
+
+def test_viewer_waters_edge():
+    """GAP §3: the shore is graded, lapping and lit from below — foam width
+    follows the coarse shore slope, a second line advances and retreats on a
+    per-segment phase, caustics dapple the shallow bed, and the damp band
+    left paintGround for the shader so it can recede."""
+    tpl = (Path(__file__).parent.parent / "dawn" / "viewer_template.html").read_text()
+    patch = tpl.split("terrainMat.onBeforeCompile")[1].split("const terrain =")[0]
+    # The edge's fields are attributes: damp band, lap phase, shallowness.
+    for a in ("aWet", "aLap", "aShal"):
+        assert f'setAttribute("{a}"' in tpl
+    # Foam width graded on the *coarse* heights — the landform rule, again.
+    bake = tpl.split("// Foam: a broken bright line")[1].split("terrainGeo.computeVertexNormals")[0]
+    assert "bilinear(cellH" in bake and "gentle" in bake
+    # The lap: a moving band position, phase-staggered so bays disagree.
+    assert "vLap" in patch and "lapPos" in patch
+    # Caustics live under the shallows only, driven by the same clock.
+    assert "vShal" in patch and "uFoamT" in patch
+    # The per-tick wet paint is gone from paintGround.
+    paint = tpl.split("function paintGround(")[1].split("\n}\n")[0]
+    assert "vertWet" not in paint
+    # Determinism: the whole edge runs on uFoamT (the stepped clock), no
+    # wall clock and no Math.random anywhere in the patch.
+    assert "Date.now" not in patch and "Math.random" not in patch
 
 
 def test_viewer_directed_moves_are_flown_not_sprung():

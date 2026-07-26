@@ -854,6 +854,8 @@ const vertClump = new Float32Array(pos.count);
 const vertElev = new Float32Array(pos.count);
 const vertFoam = new Float32Array(pos.count);
 const vertWet = new Float32Array(pos.count);
+const vertLap = new Float32Array(pos.count);
+const vertShal = new Float32Array(pos.count);
 // Forest as a field rather than a per-cell flag, so a wood has an edge that
 // wanders across cells instead of stopping at one.
 const forestGrid = Array.from({length: G}, (_, x) => {
@@ -877,17 +879,38 @@ for (let i = 0; i < pos.count; i++) {
   vertElev[i] = bilinear(elevGrid, fx, fy);
   // Foam: a broken bright line that hugs the waterline the record asserts.
   // It lives on the bank and the first shallows, noisy so it reads as surf
-  // rather than a painted stroke.
+  // rather than a painted stroke. Its width is graded by the shore's own
+  // slope — measured on the coarse heights, the landform rule again — so
+  // surf spreads over a gentle shelf and pinches to a line at a cut bank.
   const dwv = bilinear(distWater, fx, fy);
-  vertFoam[i] = dwv < 1.4
-    ? Math.max(0, 1 - Math.abs(hv - 0.015) / 0.11) * Math.min(1, 1.4 - dwv)
+  const sdx = bilinear(cellH, fx + 0.5, fy) - bilinear(cellH, fx - 0.5, fy);
+  const sdy = bilinear(cellH, fx, fy + 0.5) - bilinear(cellH, fx, fy - 0.5);
+  const gentle = 1 - Math.min(1, Math.max(0, (Math.hypot(sdx, sdy) - 0.25) / 1.3));
+  const reach = 0.8 + 1.1 * gentle, hwin = 0.05 + 0.05 * gentle;
+  vertFoam[i] = dwv < reach
+    ? Math.max(0, 1 - Math.abs(hv - 0.015) / hwin) * Math.min(1, reach - dwv)
       * (0.45 + 0.55 * fbm(fx * 1.9, fy * 1.9, NSEED + 5100))
     : 0;
-  // Above the foam, a damp band: ground that was underwater this morning
-  // reads darker than the dry land above it.
-  vertWet[i] = dwv < 1.8
-    ? Math.max(0, 1 - Math.abs(hv - 0.07) / 0.16) * Math.min(1, 1.8 - dwv)
+  // Above the foam, a damp band: ground the water reaches at its highest.
+  // Graded by the same shelf — a beach dries slowly, a bank hardly at all.
+  // The window is asymmetric: full strength holds *below* the waterline
+  // (the swell keeps exposing that strip, and exposed bed is always wet),
+  // fading only upward where the ground actually dries.
+  const wreach = 1.2 + 0.9 * gentle;
+  vertWet[i] = dwv < wreach
+    ? (hv < 0.07 ? Math.max(0, Math.min(1, (hv + 0.18) / 0.11))
+                 : Math.max(0, 1 - (hv - 0.07) / 0.16))
+      * Math.min(1, wreach - dwv)
     : 0;
+  // The lap phase: one number per shore segment, from noise slow enough
+  // that a whole bay shares it — so the waterline advances here while it
+  // retreats there, and the shore never pulses in unison.
+  vertLap[i] = fbm(fx * 0.23, fy * 0.23, NSEED + 5300) * Math.PI * 4;
+  // Shallowness, for the caustic dapple: full strength where the bed sits
+  // just under the surface, gone by half a unit down. Gated to the water
+  // side so a low lip of land never catches light meant for the bed.
+  vertShal[i] = (dwv < 0.75 && hv < -0.02)
+    ? Math.pow(Math.max(0, 1 - (-hv) / 0.42), 1.5) : 0;
 }
 terrainGeo.computeVertexNormals();
 // Slope per vertex, for rock on the steep faces. This is the one ground
@@ -940,9 +963,13 @@ const hillshade = new Float32Array(pos.count);
 }
 terrainGeo.setAttribute("color",
   new THREE.BufferAttribute(new Float32Array(pos.count * 3), 3));
-// Foam rides the shader now, so the vertices hand it their band as an
-// attribute rather than a paint.
+// The whole water's edge rides the shader now, so the vertices hand it
+// their bands as attributes rather than paints: foam, the damp band, the
+// lap phase, and how shallow the bed beneath is.
 terrainGeo.setAttribute("aFoam", new THREE.BufferAttribute(vertFoam, 1));
+terrainGeo.setAttribute("aWet", new THREE.BufferAttribute(vertWet, 1));
+terrainGeo.setAttribute("aLap", new THREE.BufferAttribute(vertLap, 1));
+terrainGeo.setAttribute("aShal", new THREE.BufferAttribute(vertShal, 1));
 // The terrain material is patched three ways: cloud shadows (world-space
 // darkening under six drifting blobs), close-range grain that fades in near
 // the camera (the fifth ANNALS technique, refused while the ground had no
@@ -954,13 +981,18 @@ const terrainMat = new THREE.MeshLambertMaterial({vertexColors: true});
 terrainMat.onBeforeCompile = sh => {
   sh.uniforms.uShad = cloudShade.uShad;
   sh.uniforms.uFoamT = {value: 0};
-  sh.vertexShader = ("attribute float aFoam;\nvarying float vFoam;\n" +
+  sh.vertexShader = ("attribute float aFoam;\nattribute float aWet;\n" +
+                     "attribute float aLap;\nattribute float aShal;\n" +
+                     "varying float vFoam;\nvarying float vWet;\n" +
+                     "varying float vLap;\nvarying float vShal;\n" +
                      "varying vec3 vWorldXZ;\n") + sh.vertexShader.replace(
     "#include <begin_vertex>",
-    "#include <begin_vertex>\n  vFoam = aFoam;\n" +
+    "#include <begin_vertex>\n  vFoam = aFoam;\n  vWet = aWet;\n" +
+    "  vLap = aLap;\n  vShal = aShal;\n" +
     "  vWorldXZ = (modelMatrix * vec4(position, 1.0)).xyz;");
   sh.fragmentShader = ("uniform vec4 uShad[6];\nuniform float uFoamT;\n" +
-    "varying float vFoam;\nvarying vec3 vWorldXZ;\n") +
+    "varying float vFoam;\nvarying float vWet;\nvarying float vLap;\n" +
+    "varying float vShal;\nvarying vec3 vWorldXZ;\n") +
     sh.fragmentShader.replace("#include <color_fragment>",
       `#include <color_fragment>
        for (int i = 0; i < 6; i++) {
@@ -975,9 +1007,35 @@ terrainMat.onBeforeCompile = sh => {
                  + 0.5 * fract(sin(dot(floor(vWorldXZ.xz * 41.0), vec2(39.3468, 11.135))) * 24634.6345);
          diffuseColor.rgb *= 1.0 + (g / 1.5 - 0.5) * 0.22 * gk;
        }
+       // The lap: this shore segment's waterline is somewhere in its slow
+       // advance or retreat — vLap staggers the phase bay by bay.
+       float lap = sin(uFoamT * 0.8 + vLap);
+       float lapPos = 0.012 + 0.052 * (0.5 + 0.5 * lap);
        // The foam line, breathing: brightening travels slowly along the shore.
        float fo = vFoam * (0.55 + 0.45 * sin(uFoamT * 1.6 + vWorldXZ.x * 2.3 + vWorldXZ.z * 1.7));
-       diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.95, 0.94), clamp(fo, 0.0, 0.42));`);
+       // The second line laps: a crest that rides up the beach and slides
+       // back, brightest on the advance, a ghost on the retreat. The band
+       // is a gaussian in *height*, which grades its width by the shore's
+       // slope for free — wide over a flat shelf, a line at a cut bank.
+       float lapBand = exp(-pow((vWorldXZ.y - lapPos) / 0.009, 2.0))
+                     * max(vWet, vFoam) * (0.35 + 0.65 * smoothstep(-0.6, 1.0, lap));
+       fo = max(fo, lapBand * 0.9);
+       // The damp band first, so the foam line sits on wet ground: dark
+       // below the lap's reach, drying above it — this used to be a
+       // per-tick paint, and a paint cannot recede.
+       float wet = vWet * (0.45 + 0.55 * smoothstep(lapPos + 0.04, lapPos - 0.02, vWorldXZ.y));
+       diffuseColor.rgb *= 1.0 - 0.34 * wet;
+       diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.95, 0.94), clamp(fo, 0.0, 0.42));
+       // Caustic dapple: a moving net of light on the bed of the first
+       // half-unit of water — what says "clear" louder than any blue.
+       if (vShal > 0.003) {
+         vec2 cp = vWorldXZ.xz;
+         float c1 = sin(cp.x * 9.1 + uFoamT * 1.1) * sin(cp.y * 8.3 - uFoamT * 0.9);
+         float c2 = sin(dot(cp, vec2(6.7, 7.6)) - uFoamT * 1.3)
+                  * sin(dot(cp, vec2(7.9, -6.1)) + uFoamT * 1.0);
+         float ca = pow(clamp(c1 * c2 * 1.4, 0.0, 1.0), 1.6);
+         diffuseColor.rgb += vec3(0.30, 0.38, 0.36) * ca * vShal;
+       }`);
   terrainMat.userData.shader = sh;
 };
 const terrain = new THREE.Mesh(terrainGeo, terrainMat);
@@ -1040,13 +1098,18 @@ const SHALLOW = new THREE.Color(0x5b7f92), DEEP = new THREE.Color(0x27405c);
 const _wc = new THREE.Color();
 {
   const wcol = new Float32Array(wpos.count * 3);
+  const wdeep = new Float32Array(wpos.count);
   for (let i = 0; i < wpos.count; i++) {
     const x = Math.min(G - 1, i % G), y = Math.min(G - 1, Math.floor(i / G));
     const deep = Math.min(1, distLand[x][y] / 3.6);
     _wc.copy(SHALLOW).lerp(DEEP, deep * deep * (3 - 2 * deep));
     wcol[i * 3] = _wc.r; wcol[i * 3 + 1] = _wc.g; wcol[i * 3 + 2] = _wc.b;
+    wdeep[i] = deep;
   }
   waterGeo.setAttribute("color", new THREE.BufferAttribute(wcol, 3));
+  // Depth as an attribute too: the shallows go clear (§3's caustics live
+  // under them), the deep keeps its cover.
+  waterGeo.setAttribute("aDeep", new THREE.BufferAttribute(wdeep, 1));
 }
 const waterBaseY = new Float32Array(wpos.count);
 for (let i = 0; i < wpos.count; i++) waterBaseY[i] = wpos.getY(i);
@@ -1069,7 +1132,15 @@ const waterMat = new THREE.MeshPhongMaterial(
 // would the moment this material were reused.
 waterMat.onBeforeCompile = (shader) => {
   shader.uniforms.uHorizon = {value: new THREE.Color(0x191510)};
-  shader.fragmentShader = "uniform vec3 uHorizon;\n" + shader.fragmentShader
+  shader.vertexShader = "attribute float aDeep;\nvarying float vDeep;\n" +
+    shader.vertexShader.replace("#include <begin_vertex>",
+      "#include <begin_vertex>\n  vDeep = aDeep;");
+  shader.fragmentShader = ("uniform vec3 uHorizon;\nvarying float vDeep;\n" +
+    shader.fragmentShader)
+    .replace("#include <color_fragment>", `#include <color_fragment>
+      // Clear over the shallows, covered over the deep: the flat 0.88 hid
+      // the bed everywhere, and a bed you cannot see cannot say "clear".
+      diffuseColor.a = mix(0.45, 0.93, vDeep);`)
     .replace("#include <opaque_fragment>", `
       float fres = pow(1.0 - clamp(abs(dot(normalize(normal),
                        normalize(vViewPosition))), 0.0, 1.0), 4.5);
@@ -1412,11 +1483,8 @@ function paintGround(tick) {
       const snow = Math.max(0, Math.min(0.78, (vertElev[i] - 0.30) * 1.7)) * (1 - s * 0.75);
       if (snow > 0) _sc1.lerp(snowTmp, snow);
     }
-    const we = vertWet[i];
-    if (we > 0.02) {
-      _sc2.copy(_sc1).multiplyScalar(0.55);
-      _sc1.lerp(_sc2, Math.min(0.4, we * 0.45));
-    }
+    // The damp band moved into the terrain shader (§3), where it can
+    // follow the lap of the water instead of sitting where a tick left it.
     const k = vertMottle[i] * vertGrain[i] * hillshade[i] * vertAO[i];
     col.setXYZ(i, _sc1.r * k, _sc1.g * k, _sc1.b * k);
   }

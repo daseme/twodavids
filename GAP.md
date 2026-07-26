@@ -169,6 +169,30 @@ a breathing foam line, and a hard silhouette.
 - The wet band animates with the lap phase (it is currently a per-tick
   paint; it wants to move to the shader beside the foam).
 
+**Built (2026-07-26).** The whole edge rides the terrain shader now, on
+four baked attributes (foam, damp band, lap phase, bed shallowness) and
+the stepped clock. Foam width is graded by shore slope measured on the
+*coarse* heights — the landform rule again — so surf spreads over a
+shelf and pinches to a line at a cut bank. The lap is a second crest
+whose *position* rides up the beach and slides back on a ~8 s period,
+phase-set per shore segment by low-frequency noise so no two bays pulse
+together; the band is a gaussian in height, which grades its width by
+slope for free. The damp band left paintGround for the shader (a paint
+cannot recede), gates dark below the lap's reach, and its baked window is
+asymmetric — full strength holds below the waterline, because the swell
+keeps exposing that strip and exposed bed is always wet. Two findings
+paid for the pass. First, caustics were invisible at any strength while
+the water sheet sat at a flat 0.88 opacity: a bed you cannot see cannot
+say "clear", so the sheet's alpha now grades 0.45 at the bank to 0.93
+over the deep on the same depth field as its tint, and the dapple (two
+moving interference nets, water-side gated so a low lip of land never
+catches them) reads from above. Second, the swell was already a lap —
+±0.03 of water height is ±1 unit of waterline on a gentle shelf — and
+§3's job was to make the ground answer it, not to invent motion. Graded
+by `shots/edge-look.mjs`, an ad-hoc eye that probes `surfaceY` for a
+gentle shore, aims across the water from the land side, and captures
+four lap phases plus an overhead of the shallows.
+
 ## 4. Light with only one source
 
 One directional + a hemisphere fill is a diagram's lighting. What the
