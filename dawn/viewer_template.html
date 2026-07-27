@@ -2327,6 +2327,19 @@ const TRUNK = {
   broad: mergeParts([{g: cyl(0.028, 0.045, 0.30, 5), c: C.woodD, p: [0, 0.15, 0]}]),
   pine:  mergeParts([{g: cyl(0.022, 0.040, 0.24, 5), c: C.woodD, p: [0, 0.12, 0]}]),
 };
+// Deadwood: the record is silent about how a wood ages, so the viewer
+// decorates the silence — a few veterans stand dead as silvered snags and
+// a few lie where they fell. Evidence-free, deterministic, and confined to
+// the grove hearts where age gathers.
+const SNAG = mergeParts([
+  {g: cyl(0.010, 0.048, 0.55, 5), c: [0.31, 0.30, 0.27], p: [0, 0.275, 0]},
+  {g: cyl(0.007, 0.013, 0.17, 4), c: [0.27, 0.26, 0.23], p: [0.055, 0.40, 0.01], r: [0, 0, 1.25]},
+  {g: cyl(0.006, 0.011, 0.13, 4), c: [0.27, 0.26, 0.23], p: [-0.04, 0.31, -0.03], r: [0.35, 0, -1.15]},
+]);
+const LOG = mergeParts([
+  {g: cyl(0.026, 0.032, 0.46, 6), c: [0.26, 0.23, 0.19], p: [0, 0, 0], r: [0, 0, Math.PI / 2]},
+  {g: cyl(0.006, 0.010, 0.10, 4), c: [0.24, 0.21, 0.17], p: [0.08, 0.045, 0.01], r: [0.3, 0, 0.5]},
+]);
 // The crease between two touching lobes is where a crown shows its
 // structure. The interior of a merged cluster is hidden geometry — darkening
 // it changes nothing the eye receives — so the shade is baked where it is
@@ -2408,10 +2421,10 @@ function clearedCells(r = 2) {
   return cleared;
 }
 
-const forest = {broad: null, pine: null, season: -1};
+const forest = {broad: null, pine: null, snag: null, log: null, season: -1};
 function plantForest() {
   const cleared = clearedCells();
-  const place = {broad: [], pine: []};
+  const place = {broad: [], pine: [], snag: [], log: []};
   // The land's own height range, so the species sort below reads relative
   // elevation — a low world and a high world both get valley broadleaves
   // and ridge pines.
@@ -2476,6 +2489,15 @@ function plantForest() {
       // high stand, and without the remap the age axis is a stub. Dice
       // still spread neighbours apart.
       const age = Math.min(1, Math.max(0, (stand - 0.35) / 0.55));
+      // Deadwood in the hearts: where age gathers, a few veterans stand
+      // dead and a few lie down. The dice that kill a tree also remove it —
+      // a snag is not an extra ornament, it is a tree the wood lost.
+      const h6 = hash2(x * 3 + i * 7, y * 29 + i, NSEED + 613 + i);
+      if (age > 0.55 && h6 < 0.11) {
+        place[h6 < 0.065 ? "snag" : "log"].push(
+          {x: px, y: py, s: 0.80 + h4 * 0.50, st: stand, rot: h1 * 6.283});
+        continue;
+      }
       place[kind].push({x: px, y: py, s: 0.62 + h4 * 0.40 + age * 0.55,
                         st: stand, rot: h1 * 6.283});
     }
@@ -2582,6 +2604,33 @@ function plantForest() {
     scene.add(trunks, leaves);
     forest[kind] = {trunks, leaves, cols, full, bare, n: list.length, pts: list};
   }
+  // Dead wood is still wood: instanced and shadowed, but deaf to wind and
+  // season. Snags lean harder than the living; logs pitch to the ground
+  // gradient along their own axis so their ends do not float on a hillside.
+  for (const [kind, geo, tint] of [["snag", SNAG, 0xb9b3a8], ["log", LOG, 0x9c8f7d]]) {
+    const list = place[kind];
+    if (!list.length) continue;
+    const mesh = new THREE.InstancedMesh(geo,
+      new THREE.MeshLambertMaterial({color: tint, vertexColors: true}), list.length);
+    list.forEach((t, i) => {
+      toWorld(t.x, t.y, v);
+      v.y -= (kind === "log" ? 0.005 : 0.03);
+      if (kind === "log") {
+        const ca = Math.cos(t.rot), sa = Math.sin(t.rot);
+        const hA = heightAt(t.x + ca * 0.25, t.y - sa * 0.25),
+              hB = heightAt(t.x - ca * 0.25, t.y + sa * 0.25);
+        e.set(0, t.rot, Math.atan2(hA - hB, 0.5));
+      } else {
+        const lm = 0.16;
+        e.set((h4of(t) - 0.5) * lm, t.rot, (h5of(t) - 0.5) * lm);
+      }
+      q.setFromEuler(e); sc.set(t.s, t.s, t.s);
+      m4.compose(v, q, sc); mesh.setMatrixAt(i, m4);
+    });
+    mesh.castShadow = true; mesh.frustumCulled = false;
+    scene.add(mesh);
+    forest[kind] = {mesh, n: list.length, pts: list};
+  }
 }
 // Wind in the crowns: a vertex sway patched into the leaf material, phasing
 // off each instance's own translation so the stand never moves as one sheet.
@@ -2628,7 +2677,9 @@ for (const kind of ["broad", "pine"]) {
 // both courtesies.
 const treeHash = new Map();   // "cx,cz" (3-unit cells) -> [{kind, i, wx, wz, s}]
 const TREE_CELL = 3;
-for (const kind of ["broad", "pine"]) {
+// Snags are in the hash — a dead bole is as solid as a living one — but
+// logs are not: deadfall is stepped over, not walked around.
+for (const kind of ["broad", "pine", "snag"]) {
   const f = forest[kind];
   if (!f) continue;
   f.pts.forEach((t, i) => {
@@ -2658,6 +2709,7 @@ function updateTreeFade() {
   const near = wander ? treesNear(wander.x, wander.z, 2.6) : [];
   const nearKeys = new Set(near.map(t => t.kind + "|" + t.i));
   for (const t of near) {
+    if (t.kind === "snag") continue;   // no crown to fade; the bole still collides
     const d = Math.hypot(t.wx - wander.x, t.wz - wander.z);
     const k = Math.max(0.04, Math.min(1, (d - 1.0) / 1.6));
     if (k >= 1 && !fadedTrees.has(t.kind + "|" + t.i)) continue;
@@ -4214,6 +4266,14 @@ window.__dawn = {
                    })};
     }
     out.bareLandFrac = +(1 - occupied.size / land).toFixed(3);
+    // Deadwood counts and a few grid positions, so the grading eye can be
+    // aimed at them: zero snags means the wood has no past.
+    out.deadwood = {snags: forest.snag ? forest.snag.n : 0,
+                    logs: forest.log ? forest.log.n : 0,
+                    snagAt: (forest.snag ? forest.snag.pts : []).slice(0, 4)
+                      .map(t => [+t.x.toFixed(1), +t.y.toFixed(1)]),
+                    logAt: (forest.log ? forest.log.pts : []).slice(0, 4)
+                      .map(t => [+t.x.toFixed(1), +t.y.toFixed(1)])};
     return out;
   },
   slotPos: (cid, id) => {
