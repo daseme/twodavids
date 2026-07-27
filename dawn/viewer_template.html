@@ -221,6 +221,7 @@ where the full treatment in VIEWER.md §§2–4 is still to come. -->
   <button id="dig" title="Render only what the surviving record supports">dig</button>
   <button id="wander" title="Walk the world at eye height — wasd walk, drag steers, the wheel is pace">wander</button>
   <button id="sound" title="Ambience of what is drawn — wind, water, hearths after dark">sound</button>
+  <button id="ovTerritory" title="The atlas layer: whose ground is whose, painted at full voice">territory</button>
   <div id="scrubwrap"><div id="marks"></div><input id="scrub" type="range" min="0" value="0" step="1"></div>
   <button id="slower" class="mini" title="Half speed ([)">−</button>
   <div id="speed">3 t/s</div>
@@ -1423,6 +1424,17 @@ const groundTintOf = (cid) =>
 // small area that pays for this restraint.
 const builtTintOf = (cid, l) =>
   new THREE.Color().setHSL(hueOf(cid) / 360, 0.33, l, THREE.SRGBColorSpace);
+// The atlas layer paints to be read, not to sit in the world: brighter and
+// more saturated than groundTint, or full-voice territory goes mud.
+const atlasTints = new Map();
+function atlasTint(cid) {
+  let c = atlasTints.get(cid);
+  if (!c) {
+    c = new THREE.Color().setHSL(hueOf(cid) / 360, 0.48, 0.56, THREE.SRGBColorSpace);
+    atlasTints.set(cid, c);
+  }
+  return c;
+}
 const groundTints = new Map();
 function groundTint(cid) {
   let c = groundTints.get(cid);
@@ -1532,8 +1544,13 @@ function paintGround(tick) {
           const closed = ((sum.c[me] || {}).mean || [])[3] || 0;   // closed/open axis
           const edge = n ? same / n : 1;
           const sharp = 0.35 + 0.45 * Math.max(0, closed);  // closed ⇒ crisp frontier
-          const w = 0.30 * Math.min(1, edge < 1 ? (edge - 0.3) / 0.7 * (1 - sharp) + sharp * (edge > 0.6 ? 1 : 0) : 1);
-          tintTmp.lerp(groundTint(me), Math.max(0, w));
+          const soft = edge < 1 ? (edge - 0.3) / 0.7 * (1 - sharp) + sharp * (edge > 0.6 ? 1 : 0) : 1;
+          // The play view keeps membership a whisper; the atlas layer gives
+          // the same vote full voice — interior saturates, the frontier
+          // keeps its openness-graded softness.
+          const w = (overlayMode === "territory" ? 0.80 : 0.30) * Math.min(1, soft);
+          tintTmp.lerp(overlayMode === "territory" ? atlasTint(me) : groundTint(me),
+                       Math.max(0, w));
         }
       }
     }
@@ -4107,6 +4124,7 @@ function drawLegend(tick) {
 const scrubEl = document.getElementById("scrub"), playBtn = document.getElementById("play");
 scrubEl.max = T - 1;
 let curTick = 0, playing = false, tps = 3, lastPaint = -1, lastLegend = -1;
+let overlayMode = null;   // atlas layer: null | "territory" (people, ties to come)
 let lastEra = -1, eraTimer = 0;
 function eraCard(era, tick) {
   const el = document.getElementById("eracard");
@@ -4142,6 +4160,20 @@ function setTick(t, hard) {
   }
 }
 playBtn.addEventListener("click", () => { endOpening(); playing = !playing; playBtn.textContent = playing ? "pause" : "play"; }, sig);
+// ---- overlays: atlas layers over the world, one at a time -------------------
+// The play view answers "what happened"; the atlas answers "whose, how many,
+// with whom" on request. Territory first; people and ties join the same switch.
+const ovBtns = {territory: document.getElementById("ovTerritory")};
+function setOverlay(m) {
+  overlayMode = (m && overlayMode !== m) ? m : null;
+  for (const [k, b] of Object.entries(ovBtns)) b.classList.toggle("on", overlayMode === k);
+  // Repaint now, not on the next seek: the paint guard lives in setTick, and
+  // a paused viewer would otherwise show the toggle lit over yesterday's paint.
+  paintGround(Math.floor(curTick));
+  lastPaint = Math.floor(curTick);
+}
+for (const [k, b] of Object.entries(ovBtns))
+  b.addEventListener("click", () => setOverlay(k), sig);
 
 // ---- archaeologist mode toggle ----------------------------------------------
 const digBtn = document.getElementById("dig"), modeNote = document.getElementById("modenote");
@@ -4231,9 +4263,10 @@ function endOpening() {
 const hash = new URLSearchParams(location.hash.slice(1));
 setTick(+(hash.get("t") || 0), true);
 if (hash.has("dig")) setArchaeo(true);
+if (hash.has("overlay")) setOverlay(hash.get("overlay"));
 if (hash.has("play")) playBtn.click();
 toWorld(G / 2, G / 2, cam.fTarget); cam.focus.copy(cam.fTarget);
-if (!hash.has("t") && !hash.has("play") && !hash.has("dig") &&
+if (!hash.has("t") && !hash.has("play") && !hash.has("dig") && !hash.has("overlay") &&
     !matchMedia("(prefers-reduced-motion: reduce)").matches) {
   opening = true;
   document.body.classList.add("open");
@@ -4366,6 +4399,17 @@ window.__dawn = {
   rivers: () => RIVER_STATS,
   // The bottom storey as planted: per-layer counts and the cell ledger.
   ground: () => GROUND,
+  // Set or clear an atlas layer ("territory"; more to come) and report what
+  // is showing plus how much data it has to show, so the layers are
+  // gradeable by driver like everything else.
+  overlay: (m) => {
+    setOverlay(m);
+    const own = ownerAt(Math.floor(curTick));
+    let owned = 0;
+    for (let x = 0; x < G; x++) for (let y = 0; y < G; y++)
+      if (!DATA.water[x][y] && own[x][y] >= 0) owned++;
+    return {mode: overlayMode, ownedCells: owned};
+  },
   // Every living settlement's anchor in grid coords, so a shot of a
   // people's ground is aimed instead of hunted for.
   sites: () => { const out = {}; for (const [cid, g] of groups)
