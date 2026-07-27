@@ -2419,10 +2419,36 @@ function plantForest() {
     if (heightAt(x, y) < 0.05) continue;
     if (cleared.has(x * 1000 + y)) continue;
     const [density, pineShare] = VEG_BY_INDEX[DATA.biome[x][y]] || VEG_BY_INDEX[0];
+    // The biome density is a budget, not a blanket: three record-driven
+    // terms shape it before it becomes a count, because a near-uniform
+    // scatter reads as texture and gaps carry as much information as trees.
+    // Soil first — the coarse slope sheds trees before it sheds grass, and
+    // nothing plants on scree (the rock paint's own landform rule).
+    const gx = bilinear(cellH, x + 0.5, y) - bilinear(cellH, x - 0.5, y);
+    const gy = bilinear(cellH, x, y + 0.5) - bilinear(cellH, x, y - 0.5);
+    const grad = Math.hypot(gx, gy);
+    // Inside the recorded forest the slope has no vote: the record asserts
+    // a wood on that hillside, and the viewer's landform taste does not
+    // outrank the record.
+    const inWood = DATA.biome[x][y] === 1;
+    if (grad > 1.55 && !inWood) continue;
+    const slopeK = inWood ? 1 : Math.max(0, 1 - Math.max(0, grad - 0.9) / 0.65);
+    // Stands: low-frequency noise gathers the wood into groves with true
+    // gaps between them. Inside the recorded forest the swing is clamped
+    // gentle — those cells are a wood because the record says so, and the
+    // viewer may not open a meadow the record never asserted.
+    const stand = fbm(x * 0.45, y * 0.45, NSEED + 911);
+    const clump = DATA.biome[x][y] === 1
+      ? 0.72 + 0.56 * stand
+      : Math.pow(stand, 1.6) * 2.4;
+    // Thirst: land within reach of water carries more wood than the dry
+    // shoulders — the same distWater the shore and the ferns read.
+    const damp = 1 + 0.4 * Math.max(0, 1 - distWater[x][y] / 5.5);
+    const d = density * slopeK * clump * damp;
     // Fractional density becomes a probability, so a sparse biome scatters
     // instead of banding at the cell grid.
-    const whole = Math.floor(density);
-    const n = whole + (hash2(x, y, NSEED + 101) < density - whole ? 1 : 0);
+    const whole = Math.floor(d);
+    const n = whole + (hash2(x, y, NSEED + 101) < d - whole ? 1 : 0);
     for (let i = 0; i < n; i++) {
       const h1 = hash2(x * 7 + i, y * 13 + i * 3, NSEED + 211 + i);
       const h2 = hash2(x * 11 + i * 5, y * 3 + i, NSEED + 307 + i);
