@@ -2412,6 +2412,12 @@ const forest = {broad: null, pine: null, season: -1};
 function plantForest() {
   const cleared = clearedCells();
   const place = {broad: [], pine: []};
+  // The land's own height range, so the species sort below reads relative
+  // elevation — a low world and a high world both get valley broadleaves
+  // and ridge pines.
+  let hLo = 1e9, hHi = -1e9;
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++)
+    if (!DATA.water[x][y]) { hLo = Math.min(hLo, cellH[x][y]); hHi = Math.max(hHi, cellH[x][y]); }
   for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) {
     if (DATA.water[x][y]) continue;
     // A softened bank can dip a shore cell under the waterline; nothing is
@@ -2455,7 +2461,14 @@ function plantForest() {
       const h3 = hash2(x + i * 17, y + i * 19, NSEED + 401 + i);
       const h4 = hash2(x * 5 + i, y * 23 + i, NSEED + 503 + i);
       const px = x + (h1 - 0.5) * 0.92, py = y + (h2 - 0.5) * 0.92;
-      const kind = h3 < pineShare ? "pine" : "broad";
+      // Species sort by ground, not by dice alone: pines climb to the thin
+      // high soil, broadleaves hold the damp low ground, and a mid-frequency
+      // stand noise lets each kind close ranks — a mixed wood reads as
+      // interleaved stands, not as static.
+      const elev = (cellH[x][y] - hLo) / Math.max(1e-6, hHi - hLo);
+      const sN = fbm(x * 0.75, y * 0.75, NSEED + 977) - 0.5;
+      const pineL = Math.min(1, Math.max(0, pineShare + (elev - 0.45) * 0.85 + sN * 0.55));
+      const kind = h3 < pineL ? "pine" : "broad";
       place[kind].push({x: px, y: py, s: 0.72 + h4 * 0.66, rot: h1 * 6.283});
     }
   }
@@ -4119,15 +4132,19 @@ window.__dawn = {
     for (const kind of ["broad", "pine"]) {
       const f = forest[kind];
       if (!f) { out[kind] = {n: 0}; continue; }
-      let lo = 1e9, hi = -1e9, sum = 0, glo = 1e9, ghi = -1e9;
+      let lo = 1e9, hi = -1e9, sum = 0, glo = 1e9, ghi = -1e9, esum = 0;
       f.pts.forEach((t, i) => {
         lo = Math.min(lo, t.s); hi = Math.max(hi, t.s); sum += t.s;
+        esum += heightAt(t.x, t.y);
         const g = f.cols[0][i * 3 + 1];
         glo = Math.min(glo, g); ghi = Math.max(ghi, g);
         occupied.add(((t.x + 0.5) | 0) * 1000 + ((t.y + 0.5) | 0));
       });
       out[kind] = {n: f.n, scale: [+lo.toFixed(2), +(sum / f.n).toFixed(2), +hi.toFixed(2)],
-                   hueSpread: +(ghi - glo).toFixed(3)};
+                   hueSpread: +(ghi - glo).toFixed(3),
+                   // The species sort made visible: pines should stand higher
+                   // than broadleaves on average, or the sort is decoration.
+                   elevMean: +(esum / f.n).toFixed(3)};
     }
     out.bareLandFrac = +(1 - occupied.size / land).toFixed(3);
     return out;
