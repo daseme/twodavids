@@ -2863,12 +2863,16 @@ const GROUND = {grass: 0, bush: 0, fern: 0, sapling: 0,
 const groundCover = {season: -1, layers: [], seedheads: null, snowdust: null};
 {
   const plane = (w, h) => new THREE.PlaneGeometry(w, h);
-  // Two crossed cards, leaned apart so the silhouette breaks; the vertical
-  // ramp does for a tuft what gradeCanopy does for a crown — lit tips over
-  // shadowed roots, mass instead of paper.
+  // Three cards at thirds with a real splay — two cards at ninety degrees
+  // read as an X the moment the camera catches them edge-on, and a hillside
+  // of X's reads as cardboard litter (the review's words, and it was
+  // right). Narrower, lower, leaned apart: a tussock, not a marker. The
+  // vertical ramp does for a tuft what gradeCanopy does for a crown — lit
+  // tips over shadowed roots, mass instead of paper.
   const TUFT = gradeCanopy(mergeParts([
-    {g: plane(0.125, 0.11), c: [1, 1, 1], p: [0, 0.052, 0], r: [0.10, 0, 0]},
-    {g: plane(0.125, 0.11), c: [1, 1, 1], p: [0, 0.052, 0], r: [-0.07, Math.PI / 2, 0]},
+    {g: plane(0.095, 0.095), c: [1, 1, 1], p: [0, 0.044, 0], r: [0.22, 0, 0]},
+    {g: plane(0.095, 0.095), c: [1, 1, 1], p: [0, 0.044, 0], r: [-0.18, 2.094, 0]},
+    {g: plane(0.095, 0.095), c: [1, 1, 1], p: [0, 0.044, 0], r: [0.15, 4.189, 0]},
   ]), 0.62, 1.22);
   const BUSH = gradeCanopy(mergeParts([
     {g: lobe(0.075, 1), c: [1, 1, 1], p: [0, 0.058, 0], s: [1, 0.8, 1]},
@@ -2889,7 +2893,10 @@ const groundCover = {season: -1, layers: [], seedheads: null, snowdust: null};
   // by biome — the same table the trees read, at one storey down: meadows
   // and shores get the cover, the wood floor gets a sparse dappled layer,
   // rock and desert get almost nothing.
-  const GRASS_D = [11, 4, 20, 13, 2.2, 0.5];   // steppe, forest, valley, coast, mountain, desert
+  // Densities cut to about a third of the first build: the meadow reads as
+  // drifts with breath between them at this count, and above it the cover
+  // stopped being cover and became confetti — the frame's worst asset.
+  const GRASS_D = [3.9, 1.4, 7, 4.6, 0.8, 0.18];   // steppe, forest, valley, coast, mountain, desert
   const riverCell = new Set();
   for (const [x1, y1, x2, y2] of DATA.rivers) {
     riverCell.add(x1 * 1000 + y1); riverCell.add(x2 * 1000 + y2);
@@ -3054,9 +3061,12 @@ const groundCover = {season: -1, layers: [], seedheads: null, snowdust: null};
       list.forEach((t, i) => {
         pal(season, t, _c);
         const j = 0.85 + hash2((t.x * 64) | 0, (t.y * 64) | 0, NSEED + 8990) * 0.42;
-        arr[i * 3] = Math.min(1, _c.r * j);
-        arr[i * 3 + 1] = Math.min(1, _c.g * j);
-        arr[i * 3 + 2] = Math.min(1, _c.b * j);
+        // Hue drift, not just value: each tuft slides a little green-to-straw
+        // on its own dice, so a meadow is many grasses instead of one paint.
+        const hd = hash2((t.x * 64) | 0, (t.y * 64) | 0, NSEED + 8991) - 0.5;
+        arr[i * 3] = Math.min(1, _c.r * j * (1 + 0.34 * hd));
+        arr[i * 3 + 1] = Math.min(1, _c.g * j * (1 - 0.10 * hd));
+        arr[i * 3 + 2] = Math.min(1, _c.b * j * (1 - 0.22 * hd));
       });
       return arr;
     });
@@ -4272,6 +4282,8 @@ window.__dawn = {
   // the largest accumulation reached, and the triangles it cost. A course that
   // renders as a hairline again will show up here as maxAcc === 1.
   rivers: () => RIVER_STATS,
+  // The bottom storey as planted: per-layer counts and the cell ledger.
+  ground: () => GROUND,
   // The forest as planted: counts, scale spread, hue spread, and how much
   // land has no tree at all — gaps carry as much information as trees, so
   // the probe counts both.

@@ -28,6 +28,16 @@ export const SHOTS = [
    note: "eye height in the trees at noon — the fade, collision and floor shot"},
   {name: "night-hearths", hash: "#t=24", pre: ["legend-first"], steps: 260,
    note: "tick % 32 == 24 is full dark; the flight to a hearth lands"},
+  // Added after an outside review graded the viewer from a dusk frame the
+  // fixed list did not own: the day-for-night lift compresses exactly the
+  // variation the tree and cover passes bought, so dusk over lived ground
+  // is now a frame the harness defends. %32 == 20 is evening; %4 == 0.
+  // %32 == 16 is the last hour with the sun on the horizon — 18 and 20
+  // both graded to night under the day-for-night curve. Its season is
+  // spring by the tick arithmetic; the autumn-under-flat-light pairing
+  // stays with the ad-hoc eye (#t=618 and kin).
+  {name: "dusk-hearth", hash: "#t=1648", pre: ["legend-first"], steps: 260,
+   note: "low evening sun over a settlement — the flattest key the fixed list owns"},
   {name: "storm", hash: "#t=8", pre: ["storm-seek"], look: [24, 24, 18, 0.5],
    steps: 40,
    note: "the worst recorded winter: snow, deck, flat light"},
