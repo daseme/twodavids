@@ -2503,6 +2503,30 @@ function plantForest() {
     }
   }
 
+  // Canopy closure: inside a stand the crowns swell laterally until they
+  // touch, so a grove reads as one connected canopy at map range while the
+  // gaps between groves stay open. The swell is earned from neighbours, not
+  // painted — each living tree counts its company within a cell and widens
+  // by it, capped before crowns become slabs.
+  {
+    const all = [...place.broad, ...place.pine];
+    const bucket = new Map();
+    for (const t of all) {
+      const k = Math.floor(t.x) * 1024 + Math.floor(t.y);
+      if (!bucket.has(k)) bucket.set(k, []);
+      bucket.get(k).push(t);
+    }
+    for (const t of all) {
+      let m = 0;
+      const bx = Math.floor(t.x), by = Math.floor(t.y);
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        const b = bucket.get((bx + dx) * 1024 + (by + dy));
+        if (b) for (const o of b)
+          if (o !== t && Math.hypot(o.x - t.x, o.y - t.y) < 0.85) m++;
+      }
+      t.ck = 1 + Math.min(0.34, 0.085 * m);
+    }
+  }
   const v = new THREE.Vector3(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
   const e = new THREE.Euler(), m4 = new THREE.Matrix4();
   const h1of = t => hash2((t.x * 64) | 0, (t.y * 64) | 0, NSEED + 771);
@@ -2545,8 +2569,12 @@ function plantForest() {
       q.setFromEuler(e);
       // Per-instance squash, the same factors for full and bare so winter
       // thins a crown without changing its shape.
-      const sqx = 0.88 + h2of(t) * 0.24, sqy = 0.85 + h3of(t) * 0.30,
-            sqz = 0.88 + h1of(t) * 0.24;
+      // The closure factor widens x/z only — closure is lateral, height is
+      // age's. Trunk and crown share the matrix, so heart boles come out a
+      // shade stouter, which age would have done anyway.
+      const ck = t.ck || 1;
+      const sqx = (0.88 + h2of(t) * 0.24) * ck, sqy = 0.85 + h3of(t) * 0.30,
+            sqz = (0.88 + h1of(t) * 0.24) * ck;
       sc.set(t.s * sqx, t.s * sqy, t.s * sqz); m4.compose(v, q, sc); m4.toArray(full, i * 16);
       const b = (kind === "pine" ? t.s : t.s * 0.6);
       sc.set(b * sqx, (kind === "pine" ? t.s : t.s * 0.78) * sqy, b * sqz);
@@ -4266,6 +4294,27 @@ window.__dawn = {
                    })};
     }
     out.bareLandFrac = +(1 - occupied.size / land).toFixed(3);
+    // Canopy closure, before and after the swell on the same planted set:
+    // the fraction of living trees whose crown touches its nearest
+    // neighbour's. The gap between the two numbers is what tree 8/8 did.
+    {
+      const all = [...(forest.broad ? forest.broad.pts : []),
+                   ...(forest.pine ? forest.pine.pts : [])];
+      let bareT = 0, closeT = 0;
+      for (const t of all) {
+        let best = 1e9, bo = null;
+        for (const o of all) {
+          if (o === t) continue;
+          const d = Math.hypot(o.x - t.x, o.y - t.y);
+          if (d < best) { best = d; bo = o; }
+        }
+        if (!bo) continue;
+        if (best < 0.20 * (t.s + bo.s)) bareT++;
+        if (best < 0.20 * (t.s * (t.ck || 1) + bo.s * (bo.ck || 1))) closeT++;
+      }
+      out.canopyTouchFrac = {bare: +(bareT / Math.max(1, all.length)).toFixed(3),
+                             closed: +(closeT / Math.max(1, all.length)).toFixed(3)};
+    }
     // Deadwood counts and a few grid positions, so the grading eye can be
     // aimed at them: zero snags means the wood has no past.
     out.deadwood = {snags: forest.snag ? forest.snag.n : 0,
