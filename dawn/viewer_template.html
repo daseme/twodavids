@@ -831,6 +831,18 @@ const bilinear = (grid, fx, fy) => {
   const b = grid[x0][y1] + (grid[x1][y1] - grid[x0][y1]) * tx;
   return a + (b - a) * ty;
 };
+// The coarse slope as a field, sampled once per cell and interpolated —
+// the same measure the rock paint and the planting read, priced for the
+// height field's hot path.
+const cellGrad = Array.from({length: G}, (_, x) => {
+  const col = new Float32Array(G);
+  for (let y = 0; y < G; y++) {
+    const gx = bilinear(cellH, x + 0.5, y) - bilinear(cellH, x - 0.5, y);
+    const gy = bilinear(cellH, x, y + 0.5) - bilinear(cellH, x, y - 0.5);
+    col[y] = Math.hypot(gx, gy);
+  }
+  return col;
+});
 // Two octaves above the data grid — this is the detail that was missing, and
 // it only ever moves the surface where detailAmp permits.
 function heightField(fx, fy) {
@@ -838,7 +850,19 @@ function heightField(fx, fy) {
   if (amp <= 0) return base;
   const d = (fbm(fx * 1.35, fy * 1.35, NSEED + 2100) - 0.5) * 0.62
           + (fbm(fx * 3.10, fy * 3.10, NSEED + 2200) - 0.5) * 0.24;
-  return base + d * amp;
+  // The silhouette octave — the last map-range tell. Bilinear crests read
+  // as tent poles and long straight facets against the sky. Folded noise
+  // (crags, not ripples) keyed to the coarse relief itself: mountains earn
+  // crags in proportion to their own steepness, valley floors stay a
+  // hair's breadth from the record, and the water gate above still rules.
+  // Wavelength ~2 cells, so the fold shapes the skyline instead of
+  // texturing it — and stays off the data grid's own frequency. The
+  // gradient rides a precomputed per-cell grid: heightField is called
+  // tens of thousands of times per boot, and four bilinears per call
+  // priced a full capture out of its budget.
+  const relief = Math.min(1, bilinear(cellGrad, fx, fy) / 1.6);
+  const rn = 1 - Math.abs(2 * fbm(fx * 0.55, fy * 0.55, NSEED + 2300) - 1);
+  return base + (d + (rn - 0.6) * relief * relief * 0.9) * amp;
 }
 // heightAt is heightField sampled at a node, so everything placed on the world
 // stands on the surface actually drawn rather than on the coarse one under it.
