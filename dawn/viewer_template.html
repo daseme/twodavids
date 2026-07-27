@@ -222,6 +222,7 @@ where the full treatment in VIEWER.md §§2–4 is still to come. -->
   <button id="wander" title="Walk the world at eye height — wasd walk, drag steers, the wheel is pace">wander</button>
   <button id="sound" title="Ambience of what is drawn — wind, water, hearths after dark">sound</button>
   <button id="ovTerritory" title="The atlas layer: whose ground is whose, painted at full voice">territory</button>
+  <button id="ovPeople" title="The atlas layer: how many souls stand at each hearth">people</button>
   <div id="scrubwrap"><div id="marks"></div><input id="scrub" type="range" min="0" value="0" step="1"></div>
   <button id="slower" class="mini" title="Half speed ([)">−</button>
   <div id="speed">3 t/s</div>
@@ -4152,6 +4153,7 @@ function setTick(t, hard) {
   if (hard) { seekBeats(tick); beatCool = 0; }
   if (tick !== lastPaint) {
     paintGround(tick); updateForest(tick); updateGroundCover(tick);
+    updateOverlayMarkers(tick);
     lastPaint = tick;
   }
   if (Math.floor(tick / 20) !== lastLegend) {
@@ -4163,13 +4165,59 @@ playBtn.addEventListener("click", () => { endOpening(); playing = !playing; play
 // ---- overlays: atlas layers over the world, one at a time -------------------
 // The play view answers "what happened"; the atlas answers "whose, how many,
 // with whom" on request. Territory first; people and ties join the same switch.
-const ovBtns = {territory: document.getElementById("ovTerritory")};
+const ovBtns = {territory: document.getElementById("ovTerritory"),
+                people: document.getElementById("ovPeople")};
+// People layer: one column per living settlement, height by the square root
+// of souls (a count is a quantity, not a length — the root keeps a large
+// people from towering absurdly over a small one), with the number itself
+// on a sprite. Rebuilt whenever the paint tick moves while the layer is up.
+let ovGroup = null;
+const ovLabelCache = new Map();
+function ovLabel(text) {
+  let m = ovLabelCache.get(text);
+  if (m) return m;
+  const cv = document.createElement("canvas"); cv.width = 128; cv.height = 48;
+  const ctx = cv.getContext("2d");
+  ctx.font = "bold 30px Georgia"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillStyle = "#efe4c9"; ctx.strokeStyle = "rgba(20,16,10,0.8)"; ctx.lineWidth = 6;
+  ctx.strokeText(text, 64, 24); ctx.fillText(text, 64, 24);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;   // the banner's lesson, kept
+  m = new THREE.SpriteMaterial({map: tex, transparent: true, depthTest: false});
+  ovLabelCache.set(text, m);
+  return m;
+}
+function updateOverlayMarkers(tick) {
+  if (ovGroup) { scene.remove(ovGroup); ovGroup = null; }
+  if (overlayMode !== "people") return;
+  ovGroup = new THREE.Group();
+  const sum = summaryAt(tick);
+  for (const cid of Object.keys(sum.c)) {
+    const c = sum.c[cid];
+    const site = sitesOf(+cid, tick);
+    if (!site || !site.anchor) continue;
+    const [ax, ay] = site.anchor;
+    const h = 0.3 + Math.sqrt(Math.max(0, c.pop || 0)) * 0.035;
+    const bar = new THREE.Mesh(cyl(0.09, 0.12, h, 6),
+      new THREE.MeshLambertMaterial({color: colorOf(+cid, 0.5)}));
+    toWorld(ax, ay, bar.position);
+    bar.position.y = Math.max(0.02, groundY(ax, ay)) + h / 2 + 0.25;
+    ovGroup.add(bar);
+    const sp = new THREE.Sprite(ovLabel(String(Math.round(c.pop || 0))));
+    sp.position.copy(bar.position);
+    sp.position.y += h / 2 + 0.35;
+    sp.scale.set(1.7, 0.64, 1);
+    ovGroup.add(sp);
+  }
+  scene.add(ovGroup);
+}
 function setOverlay(m) {
   overlayMode = (m && overlayMode !== m) ? m : null;
   for (const [k, b] of Object.entries(ovBtns)) b.classList.toggle("on", overlayMode === k);
   // Repaint now, not on the next seek: the paint guard lives in setTick, and
   // a paused viewer would otherwise show the toggle lit over yesterday's paint.
   paintGround(Math.floor(curTick));
+  updateOverlayMarkers(Math.floor(curTick));
   lastPaint = Math.floor(curTick);
 }
 for (const [k, b] of Object.entries(ovBtns))
@@ -4408,7 +4456,8 @@ window.__dawn = {
     let owned = 0;
     for (let x = 0; x < G; x++) for (let y = 0; y < G; y++)
       if (!DATA.water[x][y] && own[x][y] >= 0) owned++;
-    return {mode: overlayMode, ownedCells: owned};
+    return {mode: overlayMode, ownedCells: owned,
+            markers: ovGroup ? ovGroup.children.length : 0};
   },
   // Every living settlement's anchor in grid coords, so a shot of a
   // people's ground is aimed instead of hunted for.
