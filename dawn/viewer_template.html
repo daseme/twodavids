@@ -2469,7 +2469,15 @@ function plantForest() {
       const sN = fbm(x * 0.75, y * 0.75, NSEED + 977) - 0.5;
       const pineL = Math.min(1, Math.max(0, pineShare + (elev - 0.45) * 0.85 + sN * 0.55));
       const kind = h3 < pineL ? "pine" : "broad";
-      place[kind].push({x: px, y: py, s: 0.72 + h4 * 0.66, rot: h1 * 6.283});
+      // Age rides the stand field: the grove's heart holds its veterans and
+      // the edge its young, so a grove's silhouette domes toward the middle
+      // instead of reading as noise. The field is remapped over the range
+      // where trees actually plant — the clump term already selected for
+      // high stand, and without the remap the age axis is a stub. Dice
+      // still spread neighbours apart.
+      const age = Math.min(1, Math.max(0, (stand - 0.35) / 0.55));
+      place[kind].push({x: px, y: py, s: 0.62 + h4 * 0.40 + age * 0.55,
+                        st: stand, rot: h1 * 6.283});
     }
   }
 
@@ -4133,9 +4141,11 @@ window.__dawn = {
       const f = forest[kind];
       if (!f) { out[kind] = {n: 0}; continue; }
       let lo = 1e9, hi = -1e9, sum = 0, glo = 1e9, ghi = -1e9, esum = 0;
+      let eN = 0, eS = 0, hN = 0, hS = 0;
       f.pts.forEach((t, i) => {
         lo = Math.min(lo, t.s); hi = Math.max(hi, t.s); sum += t.s;
         esum += heightAt(t.x, t.y);
+        if (t.st < 0.5) { eN++; eS += t.s; } else { hN++; hS += t.s; }
         const g = f.cols[0][i * 3 + 1];
         glo = Math.min(glo, g); ghi = Math.max(ghi, g);
         occupied.add(((t.x + 0.5) | 0) * 1000 + ((t.y + 0.5) | 0));
@@ -4144,7 +4154,11 @@ window.__dawn = {
                    hueSpread: +(ghi - glo).toFixed(3),
                    // The species sort made visible: pines should stand higher
                    // than broadleaves on average, or the sort is decoration.
-                   elevMean: +(esum / f.n).toFixed(3)};
+                   elevMean: +(esum / f.n).toFixed(3),
+                   // The age gradient made visible: mean scale at the stand's
+                   // edge against its heart — equal means the grove is noise.
+                   scaleEdgeHeart: [eN ? +(eS / eN).toFixed(2) : 0,
+                                    hN ? +(hS / hN).toFixed(2) : 0]};
     }
     out.bareLandFrac = +(1 - occupied.size / land).toFixed(3);
     return out;
