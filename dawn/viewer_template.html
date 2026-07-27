@@ -1683,6 +1683,10 @@ const MAT = {
   white: new THREE.MeshLambertMaterial({color: 0xd8d2c0, vertexColors: true}),
   gold: new THREE.MeshLambertMaterial({color: 0xc9a227, emissive: 0x584406, vertexColors: true}),
   ember: new THREE.MeshLambertMaterial({color: 0x8c4a1d, emissive: 0x7a3208, vertexColors: true}),
+  // The hearth's stones are stones: the flat emissive that made the whole
+  // ring glow lives only on the bed now (a child mesh, below) — the review
+  // called the old hearth a pile of orange cubes, and it was the material.
+  hearthStone: new THREE.MeshLambertMaterial({color: 0x9a9186, vertexColors: true}),
   pale: new THREE.MeshLambertMaterial({color: 0xcabf9f, vertexColors: true}),
   // Unattested: no identity colour — we do not know whose this was.
   unknown: new THREE.MeshLambertMaterial({color: 0x6b6459, vertexColors: true}),
@@ -2166,7 +2170,7 @@ function cachedLayout(cid, tick, sum, season) {
 const ease = (u) => u * u * (3 - 2 * u);
 const MAT_FOR = {tent: "id", hut: "id", stone: "stoneM", lodge: "idDark",
                  keep: "stoneM", post: "wood", tower: "wood", granary: "straw",
-                 hearth: "ember", shrine: "white", trophy: "wood", plaza: "pale",
+                 hearth: "hearthStone", shrine: "white", trophy: "wood", plaza: "pale",
                  axis: "pale", crownUp: "gold", mound: "unknown"};
 const LIFT = {banner: 0.55, crownUp: 1.05, tower: 0.28, shrine: 0.2,
               trophy: 0.21, post: 0.17, granary: 0.12, keep: 0.45, mound: 0};
@@ -2220,6 +2224,16 @@ function placeSlot(g, cid, id, spot, x, y, scale, now) {
     // the roof someone keeps. The glow is a child of the mesh, so it goes
     // out with the form — a struck camp's fires are struck too.
     if (slot.glow) { m.remove(slot.glow); slot.glow = null; }
+    if (slot.bed) { m.remove(slot.bed); slot.bed = null; }
+    // The bed is the only geometry allowed to glow: a small ember disc
+    // inside the stone ring, carrying MAT.ember's night ramp, a child so a
+    // struck camp's fire is struck too.
+    if (spot.kind === "hearth") {
+      const bed = new THREE.Mesh(cyl(0.095, 0.095, 0.038, 8), MAT.ember);
+      bed.position.y = 0.004;
+      m.add(bed);
+      slot.bed = bed;
+    }
     if (spot.kind === "hearth" || spot.kind === "lodge" || spot.kind === "keep") {
       const sp = new THREE.Sprite(new THREE.SpriteMaterial(
         {map: fireGlowTex, transparent: true, opacity: 0,
