@@ -2525,15 +2525,32 @@ function plantForest() {
     leaves.instanceMatrix.array.set(full);
     trunks.instanceMatrix.needsUpdate = true;
     leaves.instanceMatrix.needsUpdate = true;
-    // Four seasons of instance colour, computed once.
-    const cols = LEAF[kind].map(base => {
+    // Four seasons of instance colour, computed once. Age carries into
+    // colour on the same axis the scale rides: the young edge is fresh and
+    // light, the veteran heart deep — a grove reads as one organism with a
+    // history, not a scatter of tinted copies.
+    const cols = LEAF[kind].map((base, si) => {
       const arr = new Float32Array(list.length * 3);
       list.forEach((t, i) => {
         const j = hash2((t.x * 64) | 0, (t.y * 64) | 0, NSEED + 601);
-        const k = 0.86 + j * 0.30;
-        arr[i * 3] = Math.min(1, base[0] * k);
-        arr[i * 3 + 1] = Math.min(1, base[1] * (0.90 + j * 0.22));
-        arr[i * 3 + 2] = Math.min(1, base[2] * k);
+        const age = Math.min(1, Math.max(0, (t.st - 0.35) / 0.55));
+        const ak = 1.10 - 0.18 * age;
+        const k = (0.86 + j * 0.30) * ak;
+        let r = base[0], g = base[1], b = base[2];
+        if (kind === "broad" && si === 2) {
+          // Autumn turns tree by tree, not as a field: each broadleaf draws
+          // its own hue between gold and oxblood and its own degree of turn,
+          // veterans first — a mottled wood instead of a paint swap.
+          const h = hash2((t.x * 64) | 0, (t.y * 64) | 0, NSEED + 607);
+          const u = Math.min(1, 0.45 + 0.40 * age + 0.35 * h);
+          const summer = LEAF.broad[1];
+          r = summer[0] + (0.74 - 0.16 * h - summer[0]) * u;
+          g = summer[1] + (0.45 - 0.19 * h - summer[1]) * u;
+          b = summer[2] + (0.15 - 0.03 * h - summer[2]) * u;
+        }
+        arr[i * 3] = Math.min(1, r * k);
+        arr[i * 3 + 1] = Math.min(1, g * (0.90 + j * 0.22) * ak);
+        arr[i * 3 + 2] = Math.min(1, b * k);
       });
       return arr;
     });
@@ -4158,7 +4175,17 @@ window.__dawn = {
                    // The age gradient made visible: mean scale at the stand's
                    // edge against its heart — equal means the grove is noise.
                    scaleEdgeHeart: [eN ? +(eS / eN).toFixed(2) : 0,
-                                    hN ? +(hS / hN).toFixed(2) : 0]};
+                                    hN ? +(hS / hN).toFixed(2) : 0],
+                   // Red-channel spread per season: autumn's per-tree turn
+                   // should blow this open for the broadleaves while the
+                   // needles barely move.
+                   redSpreadBySeason: f.cols.map(a => {
+                     let rlo = 1e9, rhi = -1e9;
+                     for (let i = 0; i < f.n; i++) {
+                       rlo = Math.min(rlo, a[i * 3]); rhi = Math.max(rhi, a[i * 3]);
+                     }
+                     return +(rhi - rlo).toFixed(3);
+                   })};
     }
     out.bareLandFrac = +(1 - occupied.size / land).toFixed(3);
     return out;
