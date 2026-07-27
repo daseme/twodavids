@@ -2486,6 +2486,8 @@ function plantForest() {
   const h1of = t => hash2((t.x * 64) | 0, (t.y * 64) | 0, NSEED + 771);
   const h2of = t => hash2((t.x * 64) | 0, (t.y * 64) | 0, NSEED + 772);
   const h3of = t => hash2((t.x * 64) | 0, (t.y * 64) | 0, NSEED + 773);
+  const h4of = t => hash2((t.x * 64) | 0, (t.y * 64) | 0, NSEED + 774);
+  const h5of = t => hash2((t.x * 64) | 0, (t.y * 64) | 0, NSEED + 775);
   for (const kind of ["broad", "pine"]) {
     const list = place[kind];
     if (!list.length) continue;
@@ -2511,7 +2513,14 @@ function plantForest() {
     list.forEach((t, i) => {
       toWorld(t.x, t.y, v);
       v.y -= 0.03;   // planted, not placed: the bole bites into the ground
-      e.set(0, t.rot, 0); q.setFromEuler(e);
+      // No tree stands at attention: a small per-tree lean, growing with
+      // age (a veteran has had longer to be pushed), breaks the plantation
+      // look at eye height. The crown tilts with its trunk — one matrix.
+      const age = Math.min(1, Math.max(0, (t.st - 0.35) / 0.55));
+      const lm = 0.05 + 0.09 * age;
+      t.ln = Math.hypot((h4of(t) - 0.5) * lm, (h5of(t) - 0.5) * lm);
+      e.set((h4of(t) - 0.5) * lm, t.rot, (h5of(t) - 0.5) * lm);
+      q.setFromEuler(e);
       // Per-instance squash, the same factors for full and bare so winter
       // thins a crown without changing its shape.
       const sqx = 0.88 + h2of(t) * 0.24, sqy = 0.85 + h3of(t) * 0.30,
@@ -2525,6 +2534,19 @@ function plantForest() {
     leaves.instanceMatrix.array.set(full);
     trunks.instanceMatrix.needsUpdate = true;
     leaves.instanceMatrix.needsUpdate = true;
+    // Bark keeps the age ledger too: young boles light, veterans dark and
+    // weathered, with a whisper of per-tree warm/cool drift so a colonnade
+    // of trunks at eye height stops reading as one extruded material.
+    const bark = new Float32Array(list.length * 3);
+    list.forEach((t, i) => {
+      const age = Math.min(1, Math.max(0, (t.st - 0.35) / 0.55));
+      const j = h4of(t);
+      const k = (1.06 - 0.20 * age) * (0.94 + 0.12 * h5of(t));
+      bark[i * 3] = k * (1 + 0.06 * (j - 0.5));
+      bark[i * 3 + 1] = k;
+      bark[i * 3 + 2] = k * (1 - 0.08 * (j - 0.5));
+    });
+    trunks.instanceColor = new THREE.InstancedBufferAttribute(bark, 3);
     // Four seasons of instance colour, computed once. Age carries into
     // colour on the same axis the scale rides: the young edge is fresh and
     // light, the veteran heart deep — a grove reads as one organism with a
@@ -4158,10 +4180,11 @@ window.__dawn = {
       const f = forest[kind];
       if (!f) { out[kind] = {n: 0}; continue; }
       let lo = 1e9, hi = -1e9, sum = 0, glo = 1e9, ghi = -1e9, esum = 0;
-      let eN = 0, eS = 0, hN = 0, hS = 0;
+      let eN = 0, eS = 0, hN = 0, hS = 0, lnSum = 0, lnHi = 0;
       f.pts.forEach((t, i) => {
         lo = Math.min(lo, t.s); hi = Math.max(hi, t.s); sum += t.s;
         esum += heightAt(t.x, t.y);
+        lnSum += t.ln || 0; lnHi = Math.max(lnHi, t.ln || 0);
         if (t.st < 0.5) { eN++; eS += t.s; } else { hN++; hS += t.s; }
         const g = f.cols[0][i * 3 + 1];
         glo = Math.min(glo, g); ghi = Math.max(ghi, g);
@@ -4176,6 +4199,9 @@ window.__dawn = {
                    // edge against its heart — equal means the grove is noise.
                    scaleEdgeHeart: [eN ? +(eS / eN).toFixed(2) : 0,
                                     hN ? +(hS / hN).toFixed(2) : 0],
+                   // Lean in degrees: zero means the plantation look is back.
+                   leanDeg: [+(lnSum / f.n * 57.3).toFixed(2),
+                             +(lnHi * 57.3).toFixed(2)],
                    // Red-channel spread per season: autumn's per-tree turn
                    // should blow this open for the broadleaves while the
                    // needles barely move.
