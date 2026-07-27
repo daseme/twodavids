@@ -427,8 +427,10 @@ def test_viewer_reality_pass_scale_cues():
     assert "Vector4(0, 0, 1, 0)" in tpl, "radius 1: smoothstep never divides by 0"
     follow = tpl.split("// The cast shadows follow their sprites")[1]
     assert "dayness" in follow.split("}")[0]
-    # Haze inside the world; the sky exempt.
-    assert "new THREE.Fog(0x191510, G * 0.55, G * 2.4)" in tpl
+    # Haze inside the world; the sky exempt. Far sits at 1.9 world-widths
+    # since the sea apron: the apron's outer rim must dissolve fully.
+    assert "new THREE.Fog(0x191510, G * 0.55, G * 1.9)" in tpl
+    assert "const apron = new THREE.Mesh(apronGeo, waterMat)" in tpl
     assert "scatter: SCATTER" in tpl
 
 

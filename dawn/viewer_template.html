@@ -434,7 +434,10 @@ scene.background = new THREE.Color(0x191510);
 // well inside the world, or the far shore renders as crisp as the near one
 // and everything reads the same size — which is to say, miniature. The dome
 // and its furniture are fog-exempt, so only the land fades.
-scene.fog = new THREE.Fog(0x191510, G * 0.55, G * 2.4);
+// Far pulled from 2.4 to 1.9 world-widths with the sea apron's arrival: the
+// apron's outer rim must live fully inside the haze, and at 2.4 the world's
+// own edge was accruing barely a quarter of it (review item D).
+scene.fog = new THREE.Fog(0x191510, G * 0.55, G * 1.9);
 const camera = new THREE.PerspectiveCamera(46, 1, 0.1, G * 8);
 
 // ---- the post chain (GAP §1): scene → bloom → film curve → grain ------------
@@ -1164,7 +1167,12 @@ waterMat.onBeforeCompile = (shader) => {
     .replace("#include <color_fragment>", `#include <color_fragment>
       // Clear over the shallows, covered over the deep: the flat 0.88 hid
       // the bed everywhere, and a bed you cannot see cannot say "clear".
-      diffuseColor.a = mix(0.45, 0.93, vDeep);`)
+      // Negative aDeep is the apron's channel: full cover at the world's
+      // rim fading to nothing at the outer edge, so the sea dissolves at
+      // a grazing angle yet the plate still floats when seen from above.
+      diffuseColor.a = vDeep < 0.0
+        ? mix(0.93, 0.0, min(1.0, -vDeep))
+        : mix(0.45, 0.93, vDeep);`)
     .replace("#include <opaque_fragment>", `
       float fres = pow(1.0 - clamp(abs(dot(normalize(normal),
                        normalize(vViewPosition))), 0.0, 1.0), 4.5);
@@ -1175,6 +1183,51 @@ waterMat.onBeforeCompile = (shader) => {
 const water = new THREE.Mesh(waterGeo, waterMat);
 water.position.y = -0.03;
 scene.add(water);
+// The sea does not end at the record's edge: an apron carries the deep past
+// the fog, so the sheet dissolves into the horizon the fresnel already
+// tracks instead of cutting a line against the sky (review item D — the far
+// edge read crisper than the near ground). A plain second Mesh on the same
+// patched material: the instancing hazard above still does not apply, and
+// aDeep rides along baked to full cover. It sits below the swell's reach so
+// the two sheets never fight.
+{
+  const H = G / 2, R = G * 1.6;
+  const IN = -0.02, OUT = -1;   // negative aDeep: apron alpha 0.93 -> 0
+  const pos = [], col = [], dp = [], nrm = [];
+  const put = (x, z, d) => {
+    pos.push(x, 0, z); col.push(DEEP.r, DEEP.g, DEEP.b); dp.push(d); nrm.push(0, 1, 0);
+  };
+  // Four side strips fade along their own axis; four corner quads carry the
+  // cover on their single world-corner vertex, with the split diagonal
+  // chosen to pass through it so both triangles interpolate the fade.
+  const side = (x1, z1, x2, z2, inEdge) => {
+    const d = (x, z) => (inEdge === "z2" ? (z === z2 ? IN : OUT)
+                       : inEdge === "z1" ? (z === z1 ? IN : OUT)
+                       : inEdge === "x2" ? (x === x2 ? IN : OUT)
+                       : (x === x1 ? IN : OUT));
+    for (const [x, z] of [[x1, z1], [x1, z2], [x2, z2], [x1, z1], [x2, z2], [x2, z1]])
+      put(x, z, d(x, z));
+  };
+  side(-H, -R, H, -H, "z2"); side(-H, H, H, R, "z1");
+  side(-R, -H, -H, H, "x2"); side(H, -H, R, H, "x1");
+  const corner = (x1, z1, x2, z2, wx, wz) => {
+    const useA = (wx === x1 && wz === z1) || (wx === x2 && wz === z2);
+    const tris = useA
+      ? [[x1, z1], [x1, z2], [x2, z2], [x1, z1], [x2, z2], [x2, z1]]
+      : [[x1, z1], [x1, z2], [x2, z1], [x2, z1], [x1, z2], [x2, z2]];
+    for (const [x, z] of tris) put(x, z, x === wx && z === wz ? IN : OUT);
+  };
+  corner(-R, -R, -H, -H, -H, -H); corner(H, -R, R, -H, H, -H);
+  corner(-R, H, -H, R, -H, H); corner(H, H, R, R, H, H);
+  const apronGeo = new THREE.BufferGeometry();
+  apronGeo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  apronGeo.setAttribute("normal", new THREE.Float32BufferAttribute(nrm, 3));
+  apronGeo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+  apronGeo.setAttribute("aDeep", new THREE.Float32BufferAttribute(dp, 1));
+  const apron = new THREE.Mesh(apronGeo, waterMat);
+  apron.position.y = -0.045;
+  scene.add(apron);
+}
 // Gentle swell: two crossed waves, small enough that nothing floating on it
 // needs to know. Boats hold their own fixed waterline.
 //
