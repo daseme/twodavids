@@ -1363,6 +1363,13 @@ const BIOME_3D = [0xa8ae6a, 0x5c7a44, 0x7d9c52, 0xcbbb8f, 0x8a8e96, 0xd2bb8e]
 // tint on the land, not as paint over it (§3.1).
 const groundTintOf = (cid) =>
   new THREE.Color().setHSL(hueOf(cid) / 360, 0.30, 0.46, THREE.SRGBColorSpace);
+// Buildings sit between the legend and the land: identity stronger than the
+// ground's tint, but a roof plane is not a legend chip — at the paintbox's
+// full saturation the houses read as game pieces against a world that never
+// exceeds about thirty percent. The banner keeps the loud hue; it is the
+// small area that pays for this restraint.
+const builtTintOf = (cid, l) =>
+  new THREE.Color().setHSL(hueOf(cid) / 360, 0.33, l, THREE.SRGBColorSpace);
 const groundTints = new Map();
 function groundTint(cid) {
   let c = groundTints.get(cid);
@@ -2176,10 +2183,10 @@ function ensureGroup(cid, conf) {
   // so a settlement reads as one people's work without going monochrome.
   const mats = {
     id: new THREE.MeshLambertMaterial(
-      {color: conf === 0 ? 0x6b6459 : colorOf(+cid, known ? 0.42 : 0.36),
+      {color: conf === 0 ? 0x6b6459 : builtTintOf(+cid, known ? 0.42 : 0.36),
        vertexColors: true}),
     idDark: new THREE.MeshLambertMaterial(
-      {color: conf === 0 ? 0x5a544a : colorOf(+cid, known ? 0.28 : 0.24),
+      {color: conf === 0 ? 0x5a544a : builtTintOf(+cid, known ? 0.28 : 0.24),
        vertexColors: true}),
   };
   g = {group: grp, slots: new Map(), mats, matKey};
@@ -4284,6 +4291,11 @@ window.__dawn = {
   rivers: () => RIVER_STATS,
   // The bottom storey as planted: per-layer counts and the cell ledger.
   ground: () => GROUND,
+  // Every living settlement's anchor in grid coords, so a shot of a
+  // people's ground is aimed instead of hunted for.
+  sites: () => { const out = {}; for (const [cid, g] of groups)
+    if (g.anchor) out[cid] = [+g.anchor[0].toFixed(1), +g.anchor[1].toFixed(1)];
+    return out; },
   // The forest as planted: counts, scale spread, hue spread, and how much
   // land has no tree at all — gaps carry as much information as trees, so
   // the probe counts both.
